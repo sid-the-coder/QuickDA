@@ -1,0 +1,22 @@
+Metadata-Version: 2.1
+Name: phik
+Version: 0.9.12
+Summary: Phi_K correlation analyzer library
+Home-page: http://phik.rtfd.io
+Author: KPMG N.V. The Netherlands
+Author-email: kave@kpmg.com
+License: UNKNOWN
+Platform: UNKNOWN
+Classifier: Programming Language :: Python :: 3
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.5
+Requires-Dist: numpy (>=1.15.4)
+Requires-Dist: scipy (>=1.1.0)
+Requires-Dist: pandas (>=0.23.4)
+Requires-Dist: matplotlib (>=2.2.3)
+Requires-Dist: numba (>=0.38.1)
+Requires-Dist: joblib (>=0.14.1)
+
+UNKNOWN
+
+

@@ -1,0 +1,22 @@
+Metadata-Version: 2.1
+Name: missingno
+Version: 0.4.2
+Summary: Missing data visualization module for Python.
+Home-page: https://github.com/ResidentMario/missingno
+Author: Aleksey Bilogur
+Author-email: aleksey.bilogur@gmail.com
+License: UNKNOWN
+Download-URL: https://github.com/ResidentMario/missingno/tarball/0.4.2
+Keywords: data,data visualization,data analysis,missing data,data science,pandas,python,jupyter
+Platform: UNKNOWN
+Requires-Dist: numpy
+Requires-Dist: matplotlib
+Requires-Dist: scipy
+Requires-Dist: seaborn
+Provides-Extra: tests
+Requires-Dist: pytest ; extra == 'tests'
+Requires-Dist: pytest-mpl ; extra == 'tests'
+
+UNKNOWN
+
+

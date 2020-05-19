@@ -1,0 +1,3 @@
+#!/Users/Sidheswar/Downloads/Github/Easy-Data-Analysis-With-Pandas/environment/bin/python
+from numba.pycc import main
+main()

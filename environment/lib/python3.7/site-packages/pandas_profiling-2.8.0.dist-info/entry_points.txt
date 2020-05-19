@@ -1,0 +1,3 @@
+[console_scripts]
+pandas_profiling = pandas_profiling.controller.console:main
+
