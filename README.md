@@ -1,2 +1,2 @@
-# Easy-Data-Analysis-With-Pandas
-Reusable functions to Data Analysis with Pandas 
+# Quick-EDA
+Easy-to-use methods to perform quick Exploratory Data Analysis for any structured dataset
