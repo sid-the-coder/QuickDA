@@ -1,12 +1,15 @@
 from pandas_profiling import ProfileReport
 import pandas as pd
+import os
 
 def standardize_column_names(data):
     data.columns = [i.replace(' ', '_').lower() for i in data.columns]
     return data
 
 def generate_data_profile_report(data, report_name, is_large_dataset):
-    filename = report_name.replace(' ', '_').lower()+".html"
+    if not os.path.exists("reports"):
+        os.makedirs("reports")
+    filename = os.path.join('reports', report_name.replace(' ', '_').lower()+".html")
     profile = ProfileReport(data, title=report_name, minimal=is_large_dataset)
     profile.to_file(filename)
 
