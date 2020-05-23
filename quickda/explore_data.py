@@ -1,17 +1,17 @@
 from pandas_profiling import ProfileReport
 import pandas as pd
 import os
-
-def standardize_column_names(data):
-    data.columns = [i.replace(' ', '_').lower() for i in data.columns]
-    return data
+import calendar
+import time
 
 def generate_data_profile_report(data, report_name, is_large_dataset):
     if not os.path.exists("reports"):
         os.makedirs("reports")
-    filename = os.path.join('reports', report_name.replace(' ', '_').lower()+".html")
+    filename = os.path.join('reports', report_name.replace(' ', '_').lower() \
+                            +"_"+str(calendar.timegm(time.gmtime()))+".html")
     profile = ProfileReport(data, title=report_name, minimal=is_large_dataset)
     profile.to_file(filename)
+    return profile
 
 def summarize_data(data):
     dic = {}
@@ -46,3 +46,20 @@ def summarize_data(data):
     eda = pd.DataFrame(dic)
     eda = eda.fillna('-').round(3)
     return eda
+
+#=================================================================================================
+
+def explore(data, method="summarize", report_name="Dataset Report", is_large_dataset=False):
+    
+    try:
+        
+        if method=="summarize":
+            eda = summarize_data(data)
+            return eda
+
+        if method=="profile":
+            profile = generate_data_profile_report(data, report_name, is_large_dataset)
+            return profile
+            
+    except Exception as e:
+        return e

@@ -3,9 +3,15 @@ import plotly.graph_objs as go
 from plotly.offline import init_notebook_mode, iplot
 init_notebook_mode()
 
-def plot_time_series_distribution(data, datetime_column, target_column):
-    plot_title = "Distribution of "+target_column+" across "+datetime_column
-    data = go.Scatter(x=data[datetime_column], y=data[target_column])
-    layout = go.Layout(title=plot_title, xaxis=dict(title='Date'), yaxis=dict(title=target_column))
-    fig = go.Figure(data=[data], layout=layout)
-    plotly.offline.iplot(fig)
+def eda_timeseries(data, x, y):
+    
+    try:
+        print("Distribution - Time Series Data")
+        plot_title = "Distribution of "+y+" across "+x
+        data = go.Scatter(x=data[x], y=data[y])
+        layout = go.Layout(title=plot_title, xaxis=dict(title=x), yaxis=dict(title=y))
+        fig = go.Figure(data=[data], layout=layout)
+        plotly.offline.iplot(fig)
+        
+    except Exception as e:
+        return e
