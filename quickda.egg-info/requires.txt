@@ -1,0 +1,7 @@
+pandas
+numpy
+seaborn
+matplotlib
+pandas_profiling
+ppscore
+plotly
