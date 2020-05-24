@@ -31,15 +31,20 @@ def drop_duplicate_rows(data):
     data = data.drop_duplicates()
     return data
 
-def replace_value(data, value_to_replace, new_value):
+def replace_value(data, columns, value_to_replace, new_value):
     print("Replacing all instances of "+str(value_to_replace)+"...")
-    data = data.replace(value_to_replace, new_value)
+    if columns==[]:
+        data = data.replace(value_to_replace, new_value)
+    else:
+        for column in columns:
+            data[column] = data[column].replace(value_to_replace, new_value)
     return data
 
 def fill_na_rows(data):
     print("Filling Missing Values...")
     na_columns = data.columns[data.isna().any()].tolist()
-    data[na_columns] = data[na_columns].interpolate(method='pad', limit_direction='forward')
+    for column in na_columns:
+        data[column] = data[column].interpolate(method='pad', limit_direction='forward')
     return data
 
 def drop_na_rows(data):
@@ -67,11 +72,8 @@ def clean(data, method="default", columns=[], dtype="numeric", to_replace="", va
     try:
         
         if method=="default":
-            print("Standardizing Column Names...")
             data = standardize_column_names(data)
-            print("Removing Duplicates...")
             data = drop_duplicate_rows(data)
-            print("Dropping Missing Values...")
             data = drop_na_rows(data)  
             return data
     
@@ -97,7 +99,7 @@ def clean(data, method="default", columns=[], dtype="numeric", to_replace="", va
             return data
 
         if method=="replaceval":
-            data = replace_value(data, to_replace, value)
+            data = replace_value(data, columns, to_replace, value)
             return data
 
         if method=="fillmissing": 
