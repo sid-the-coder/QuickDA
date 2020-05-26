@@ -72,6 +72,7 @@ def reduce_feature_cardinality(data, category_column, new_value, threshold):
     # Find relative frequency of column to compare with threshold
     relative_pct = data[category_column].value_counts(dropna=False, normalize=True).round(2)
     
+    values_to_retain = []
     # If threshold not provided by user, retain only top 5 values else extract values to retain
     if threshold == 0:
         values_to_retain = relative_pct[:5].index.to_list()
