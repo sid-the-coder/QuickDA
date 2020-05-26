@@ -5,15 +5,22 @@ import calendar
 import time
 
 def generate_data_profile_report(data, report_name, is_large_dataset):
+    
+    # If '/reports' path doesn't exist, create one
     if not os.path.exists("reports"):
         os.makedirs("reports")
+        
+    # Generate HTML Profile Report
     filename = os.path.join('reports', report_name.replace(' ', '_').lower() \
                             +"_"+str(calendar.timegm(time.gmtime()))+".html")
     profile = ProfileReport(data, title=report_name, minimal=is_large_dataset)
     profile.to_file(filename)
+    
     return profile
 
 def summarize_data(data):
+    
+    # Create a descriptive statistics dictionary
     dic = {}
     print('Calculating dtypes...')
     dic['dtypes'] = data.dtypes
@@ -43,16 +50,20 @@ def summarize_data(data):
     dic['std'] = data._get_numeric_data().std()
     print('Calculating skew...')
     dic['skew'] = data._get_numeric_data().skew()
+    
+    # Convert dictionary to readable DataFrame
     eda = pd.DataFrame(dic)
     eda = eda.fillna('-').round(3)
+    
     return eda
 
-#=================================================================================================
+#================================================================================================================================
 
 def explore(data, method="summarize", report_name="Dataset Report", is_large_dataset=False):
     
     try:
         
+        # Default method
         if method=="summarize":
             eda = summarize_data(data)
             return eda
@@ -62,4 +73,4 @@ def explore(data, method="summarize", report_name="Dataset Report", is_large_dat
             return profile
             
     except Exception as e:
-        return e
+        print(e)

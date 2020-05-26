@@ -1,6 +1,7 @@
 import plotly
 import plotly.graph_objs as go
 from plotly.offline import init_notebook_mode, iplot
+
 init_notebook_mode()
 
 def eda_timeseries(data, x, y):
@@ -14,4 +15,4 @@ def eda_timeseries(data, x, y):
         plotly.offline.iplot(fig)
         
     except Exception as e:
-        return e
+        print(e)

@@ -6,9 +6,7 @@ Simple & Easy-to-use python modules to perform Quick Exploratory Data Analysis f
 
 ## Getting Started
 
-### Pre-Requistes
-
-You will need to have [Python 3](https://www.python.org) and [Jupyter Notebook](https://jupyter.org) installed in your local system. Once installed, Fork this repository and clone it on your local to get the project structure setup.
+You will need to have [Python 3](https://www.python.org) and [Jupyter Notebook](https://jupyter.org) installed in your local system. Once installed, clone this repository to your local to get the project structure setup.
 ```
 git clone https://github.com/sid-the-coder/Quick-EDA.git
 ```
@@ -16,6 +14,11 @@ git clone https://github.com/sid-the-coder/Quick-EDA.git
 You will also need to install few python package dependencies in your evironment to get started. You can do this by:
 ```
 pip3 install -r requirements.txt
+```
+
+OR you can also install the package from [PyPi Index](https://pypi.org) using the pip installer:
+```
+pip3 install quickda
 ```
 
 ## Table of Contents
@@ -30,17 +33,18 @@ pip3 install -r requirements.txt
     - **is_large_dataset: Boolean, default=False**
         - Parameter set to True explicitly to flag, in case of a large dataset 
     
-2. [Data Cleaning - clean(data)](https://github.com/sid-the-coder/Quick-EDA#data-cleaning)
+2. [Data Cleaning - clean(data)](https://github.com/sid-the-coder/Quick-EDA#data-cleaning) : [***Returns DataFrame***]
     - **data: pd.DataFrame**
     - **method: string, default="default"**
         - "default" : Standardizes column names, Removes duplicates rows and Drops missing values
         - "standardize" : Standardizes column names
         - "dropcols" : Drops columns specified by the user
-        - "dtypes" : Explicitly converts the Data Types as specified by the user
         - "duplicates" : Removes duplicate rows
         - "replaceval" : Replaces a value in dataframe with new value specified by the user
         - "fillmissing" : Interpolates all columns with missing values using forward filling
         - "dropmissing" : Drops all rows with missing values
+        - "cardinality" : Reduces Cardinality of a column given a threshold
+        - "dtypes" : Explicitly converts the Data Types as specified by the user
         - "outliers" : Removes all outliers in data using IQR method
     - **columns: list/string, default=[]**
         - Parameter to specify column names in the DataFrame
@@ -51,7 +55,9 @@ pip3 install -r requirements.txt
     - **to_replace: string/integer/regex, default=""**
         - Parameter to pass a value to replace in the DataFrane
     - **value: string/integer/regex, default=np.nan**
-        - Paramter to pass a new value that replaces an old value in the Dataframe
+        - Parameter to pass a new value that replaces an old value in the Dataframe
+    - **threshold: float, default=0
+        - Parameter to set threshold in the range of [0,1] for cardinality
     
 3. [EDA Numerical Features - eda_num(data)](https://github.com/sid-the-coder/Quick-EDA#eda-numerical-features)
     - **data: pd.DataFrame**
@@ -90,3 +96,11 @@ pip3 install -r requirements.txt
     - **data: pd.DataFrame**
     - **x: string, Datetime Type Column Name**
     - **y: string, Numeric Type Column Name**
+    
+
+## Upcoming Work
+
+1. **Basic Preprocessing for Text Data** - Tokenization, Normalization, Noise Removal, Lemmatization 
+2. **EDA for Text Data** - NGrams, POS tagging, Word Cloud, Sentiment Analysis
+3. **Quick Insight Generation for all EDA steps** - Generate easy-to-read textual insights
+3. **Quick Excel View of Data** - Filter, Sort, Quick Pivot Tables inside Jupyter Notebook
