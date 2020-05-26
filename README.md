@@ -2,7 +2,7 @@
 
 Simple & Easy-to-use python modules to perform Quick Exploratory Data Analysis for any structured dataset!
 
-![QuickDA](images/quickda.png)
+![QuickDA](https://github.com/sid-the-coder/QuickDA/blob/master/images/quickda.png)
 
 
 ## Getting Started
