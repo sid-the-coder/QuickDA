@@ -56,7 +56,7 @@ pip3 install quickda
         - Parameter to pass a value to replace in the DataFrane
     - **value: string/integer/regex, default=np.nan**
         - Parameter to pass a new value that replaces an old value in the Dataframe
-    - **threshold: float, default=0
+    - **threshold: float, default=0**
         - Parameter to set threshold in the range of [0,1] for cardinality
     
 3. [EDA Numerical Features - eda_num(data)](https://github.com/sid-the-coder/Quick-EDA#eda-numerical-features)
