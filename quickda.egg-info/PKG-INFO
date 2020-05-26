@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: quickda
-Version: 0.1.8
+Version: 0.2.0
 Summary: Simple & Easy-to-use python modules to perform Quick Exploratory Data Analysis for any structured dataset!
 Home-page: https://github.com/sid-the-coder/QuickDA
 Author: Sidheswar Venkatachalapathi
@@ -10,7 +10,7 @@ Description: # Quick-EDA
         
         Simple & Easy-to-use python modules to perform Quick Exploratory Data Analysis for any structured dataset!
         
-        ![QuickDA](images/quickda.png)
+        ![QuickDA](https://raw.githubusercontent.com/sid-the-coder/QuickDA/master/images/quickda.png)
         
         
         ## Getting Started
