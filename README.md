@@ -2,13 +2,14 @@
 
 Simple & Easy-to-use python modules to perform Quick Exploratory Data Analysis for any structured dataset!
 
-![EDA with Python](https://miro.medium.com/max/1400/1*Ptv1_9wX9O2Rm2IBklyufw.png)
+![QuickDA](images/quickda.png)
+
 
 ## Getting Started
 
 You will need to have [Python 3](https://www.python.org) and [Jupyter Notebook](https://jupyter.org) installed in your local system. Once installed, clone this repository to your local to get the project structure setup.
 ```
-git clone https://github.com/sid-the-coder/Quick-EDA.git
+git clone https://github.com/sid-the-coder/QuickDA.git
 ```
 
 You will also need to install few python package dependencies in your evironment to get started. You can do this by:

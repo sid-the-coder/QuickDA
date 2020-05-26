@@ -5,13 +5,13 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="quickda", 
-    version="0.1.6",
+    version="0.1.7",
     author="Sidheswar Venkatachalapathi",
     author_email="gauty95@gmail.com",
     description="Simple & Easy-to-use python modules to perform Quick Exploratory Data Analysis for any structured dataset!",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/sid-the-coder/Quick-EDA",
+    url="https://github.com/sid-the-coder/QuickDA",
     packages=setuptools.find_packages(),
     install_requires=[
           'pandas',
