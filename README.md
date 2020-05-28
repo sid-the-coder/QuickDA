@@ -5,7 +5,7 @@ Simple & Easy-to-use python modules to perform Quick Exploratory Data Analysis f
 ![QuickDA](https://raw.githubusercontent.com/sid-the-coder/QuickDA/master/images/quickda.png)
 
 
-## Getting Started
+## [Getting Started](https://medium.com/@gauty95/quickda-low-code-python-library-for-quick-exploratory-data-analysis-b4b1c3af369d)
 
 You will need to have [Python 3](https://www.python.org) and [Jupyter Notebook](https://jupyter.org) installed in your local system. Once installed, clone this repository to your local to get the project structure setup.
 ```
