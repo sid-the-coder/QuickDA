@@ -5,8 +5,6 @@ Utility functions for
 - detecting if compilers are present
 
 """
-from __future__ import division, absolute_import, print_function
-
 import os
 import sys
 import subprocess
@@ -21,10 +19,7 @@ from numpy.compat import asbytes, asstr
 from numpy.testing import temppath
 from importlib import import_module
 
-try:
-    from hashlib import md5
-except ImportError:
-    from md5 import new as md5  # noqa: F401
+from hashlib import md5
 
 #
 # Maintaining a temporary module directory
@@ -284,9 +279,8 @@ def build_module_distutils(source_files, config_code, module_name, **kw):
 
     script = os.path.join(d, get_temp_module_name() + '.py')
     dst_sources.append(script)
-    f = open(script, 'wb')
-    f.write(asbytes(code))
-    f.close()
+    with open(script, 'wb') as f:
+        f.write(asbytes(code))
 
     # Build
     cwd = os.getcwd()
@@ -315,7 +309,7 @@ def build_module_distutils(source_files, config_code, module_name, **kw):
 #
 
 
-class F2PyTest(object):
+class F2PyTest:
     code = None
     sources = None
     options = []

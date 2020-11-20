@@ -114,8 +114,6 @@ class ClassFilter(ParserTreeFilter):
             if expr_stmt is not None and expr_stmt.type == 'expr_stmt':
                 annassign = expr_stmt.children[1]
                 if annassign.type == 'annassign':
-                    # TODO this is not proper matching
-
                     # If there is an =, the variable is obviously also
                     # defined on the class.
                     if 'ClassVar' not in annassign.children[1].get_code() \
@@ -135,7 +133,10 @@ class ClassMixin(object):
     def is_class(self):
         return True
 
-    def py__call__(self, arguments=None):
+    def is_class_mixin(self):
+        return True
+
+    def py__call__(self, arguments):
         from jedi.inference.value import TreeInstance
 
         from jedi.inference.gradual.typing import TypedDict
@@ -186,11 +187,13 @@ class ClassMixin(object):
                             mro.append(cls_new)
                             yield cls_new
 
-    def get_filters(self, origin_scope=None, is_instance=False):
-        metaclasses = self.get_metaclasses()
-        if metaclasses:
-            for f in self.get_metaclass_filters(metaclasses):
-                yield f
+    def get_filters(self, origin_scope=None, is_instance=False,
+                    include_metaclasses=True, include_type_when_class=True):
+        if include_metaclasses:
+            metaclasses = self.get_metaclasses()
+            if metaclasses:
+                for f in self.get_metaclass_filters(metaclasses, is_instance):
+                    yield f  # Python 2..
 
         for cls in self.py__mro__():
             if cls.is_compiled():
@@ -202,7 +205,7 @@ class ClassMixin(object):
                     origin_scope=origin_scope,
                     is_instance=is_instance
                 )
-        if not is_instance:
+        if not is_instance and include_type_when_class:
             from jedi.inference.compiled import builtin_from_name
             type_ = builtin_from_name(self.inference_state, u'type')
             assert isinstance(type_, ClassValue)
@@ -224,6 +227,11 @@ class ClassMixin(object):
         # Since calling staticmethod without a function is illegal, the Jedi
         # plugin doesn't return anything. Therefore call directly and get what
         # we want: An instance of staticmethod.
+        metaclasses = self.get_metaclasses()
+        if metaclasses:
+            sigs = self.get_metaclass_signatures(metaclasses)
+            if sigs:
+                return sigs
         args = ValuesArguments([])
         init_funcs = self.py__call__(args).py__getattribute__('__init__')
         return [sig.bind(self) for sig in init_funcs.get_signatures()]
@@ -240,7 +248,7 @@ class ClassMixin(object):
     def is_typeddict(self):
         # TODO Do a proper mro resolution. Currently we are just listing
         # classes. However, it's a complicated algorithm.
-        from jedi.inference.gradual.typing import TypedDictBase
+        from jedi.inference.gradual.typing import TypedDictClass
         for lazy_cls in self.py__bases__():
             if not isinstance(lazy_cls, LazyTreeValue):
                 return False
@@ -252,7 +260,7 @@ class ClassMixin(object):
                 return False
 
             for cls in lazy_cls.infer():
-                if isinstance(cls, TypedDictBase):
+                if isinstance(cls, TypedDictClass):
                     return True
                 try:
                     method = cls.is_typeddict
@@ -265,6 +273,52 @@ class ClassMixin(object):
                     if method():
                         return True
         return False
+
+    def py__getitem__(self, index_value_set, contextualized_node):
+        from jedi.inference.gradual.base import GenericClass
+        if not index_value_set:
+            debug.warning('Class indexes inferred to nothing. Returning class instead')
+            return ValueSet([self])
+        return ValueSet(
+            GenericClass(
+                self,
+                LazyGenericManager(
+                    context_of_index=contextualized_node.context,
+                    index_value=index_value,
+                )
+            )
+            for index_value in index_value_set
+        )
+
+    def with_generics(self, generics_tuple):
+        from jedi.inference.gradual.base import GenericClass
+        return GenericClass(
+            self,
+            TupleGenericManager(generics_tuple)
+        )
+
+    def define_generics(self, type_var_dict):
+        from jedi.inference.gradual.base import GenericClass
+
+        def remap_type_vars():
+            """
+            The TypeVars in the resulting classes have sometimes different names
+            and we need to check for that, e.g. a signature can be:
+
+            def iter(iterable: Iterable[_T]) -> Iterator[_T]: ...
+
+            However, the iterator is defined as Iterator[_T_co], which means it has
+            a different type var name.
+            """
+            for type_var in self.list_type_vars():
+                yield type_var_dict.get(type_var.py__name__(), NO_VALUES)
+
+        if type_var_dict:
+            return ValueSet([GenericClass(
+                self,
+                TupleGenericManager(tuple(remap_type_vars()))
+            )])
+        return ValueSet({self})
 
 
 class ClassValue(use_metaclass(CachedMetaClass, ClassMixin, FunctionAndClassBase)):
@@ -310,54 +364,9 @@ class ClassValue(use_metaclass(CachedMetaClass, ClassMixin, FunctionAndClassBase
             self.inference_state.builtins_module.py__getattribute__('object')
         )]
 
-    def py__getitem__(self, index_value_set, contextualized_node):
-        from jedi.inference.gradual.base import GenericClass
-        if not index_value_set:
-            return ValueSet([self])
-        return ValueSet(
-            GenericClass(
-                self,
-                LazyGenericManager(
-                    context_of_index=contextualized_node.context,
-                    index_value=index_value,
-                )
-            )
-            for index_value in index_value_set
-        )
-
-    def with_generics(self, generics_tuple):
-        from jedi.inference.gradual.base import GenericClass
-        return GenericClass(
-            self,
-            TupleGenericManager(generics_tuple)
-        )
-
-    def define_generics(self, type_var_dict):
-        from jedi.inference.gradual.base import GenericClass
-
-        def remap_type_vars():
-            """
-            The TypeVars in the resulting classes have sometimes different names
-            and we need to check for that, e.g. a signature can be:
-
-            def iter(iterable: Iterable[_T]) -> Iterator[_T]: ...
-
-            However, the iterator is defined as Iterator[_T_co], which means it has
-            a different type var name.
-            """
-            for type_var in self.list_type_vars():
-                yield type_var_dict.get(type_var.py__name__(), NO_VALUES)
-
-        if type_var_dict:
-            return ValueSet([GenericClass(
-                self,
-                TupleGenericManager(tuple(remap_type_vars()))
-            )])
-        return ValueSet({self})
-
     @plugin_manager.decorate()
-    def get_metaclass_filters(self, metaclass):
-        debug.dbg('Unprocessed metaclass %s', metaclass)
+    def get_metaclass_filters(self, metaclasses, is_instance):
+        debug.warning('Unprocessed metaclass %s', metaclasses)
         return []
 
     @inference_state_method_cache(default=NO_VALUES)
@@ -377,3 +386,7 @@ class ClassValue(use_metaclass(CachedMetaClass, ClassMixin, FunctionAndClassBase
                     if values:
                         return values
         return NO_VALUES
+
+    @plugin_manager.decorate()
+    def get_metaclass_signatures(self, metaclasses):
+        return []

@@ -256,23 +256,23 @@ class _BaseTreeInstance(AbstractInstanceValue):
 
         def iterate():
             for generator in self.execute_function_slots(iter_slot_names):
-                if generator.is_instance() and not generator.is_compiled():
-                    # `__next__` logic.
-                    if self.inference_state.environment.version_info.major == 2:
-                        name = u'next'
-                    else:
-                        name = u'__next__'
-                    next_slot_names = generator.get_function_slot_names(name)
-                    if next_slot_names:
-                        yield LazyKnownValues(
-                            generator.execute_function_slots(next_slot_names)
-                        )
-                    else:
-                        debug.warning('Instance has no __next__ function in %s.', generator)
-                else:
-                    for lazy_value in generator.py__iter__():
-                        yield lazy_value
+                for lazy_value in generator.py__next__(contextualized_node):
+                    yield lazy_value
         return iterate()
+
+    def py__next__(self, contextualized_node=None):
+        # `__next__` logic.
+        if self.inference_state.environment.version_info.major == 2:
+            name = u'next'
+        else:
+            name = u'__next__'
+        next_slot_names = self.get_function_slot_names(name)
+        if next_slot_names:
+            yield LazyKnownValues(
+                self.execute_function_slots(next_slot_names)
+            )
+        else:
+            debug.warning('Instance has no __next__ function in %s.', self)
 
     def py__call__(self, arguments):
         names = self.get_function_slot_names(u'__call__')
@@ -288,6 +288,11 @@ class _BaseTreeInstance(AbstractInstanceValue):
         """
         # Arguments in __get__ descriptors are obj, class.
         # `method` is the new parent of the array, don't know if that's good.
+        for cls in self.class_value.py__mro__():
+            result = cls.py__get__on_class(self, instance, class_value)
+            if result is not NotImplemented:
+                return result
+
         names = self.get_function_slot_names(u'__get__')
         if names:
             if instance is None:
@@ -332,13 +337,14 @@ class TreeInstance(_BaseTreeInstance):
         for signature in self.class_value.py__getattribute__('__init__').get_signatures():
             # Just take the first result, it should always be one, because we
             # control the typeshed code.
-            if not signature.matches_signature(args) \
-                    or signature.value.tree_node is None:
+            funcdef = signature.value.tree_node
+            if funcdef is None or funcdef.type != 'funcdef' \
+                    or not signature.matches_signature(args):
                 # First check if the signature even matches, if not we don't
                 # need to infer anything.
                 continue
             bound_method = BoundMethod(self, self.class_value.as_context(), signature.value)
-            all_annotations = py__annotations__(signature.value.tree_node)
+            all_annotations = py__annotations__(funcdef)
             type_var_dict = infer_type_vars_for_execution(bound_method, args, all_annotations)
             if type_var_dict:
                 defined, = self.class_value.define_generics(

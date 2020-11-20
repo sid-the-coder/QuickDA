@@ -1,21 +1,18 @@
-import ppscore as pps
-import seaborn as sns
-import matplotlib.pyplot as plt
+from quickda.config import *
 
-sns.set(style="darkgrid")
-
-def find_predictive_power_score(data):
+def find_predictive_power_score(data, x):
     
-    print("Predictive Power Score - Heatmap")
+    print("Feature Importance in the prediction of "+x)
     
     # Predictive Power Score - PPS Matrix
-    pscore = pps.matrix(data)
-    
-    return pscore.style.background_gradient(cmap='coolwarm', axis=None).set_precision(2)
+    predictors_df = pps.predictors(data, y=x)
+    sns.set(rc={'figure.figsize':(20,10)})
+    sns.barplot(data=predictors_df, x="ppscore", y="x")
+    plt.show()
 
 def scatterplot_between_numerical_features(data, x_num_column, y_num_column, cat_column):
     
-    print("Analyse Relationships - Scatterplot")
+    print("Scatterplot of "+x_num_column+" versus "+y_num_column)
     
     # Show Scatterplot between two features
     sns.set(rc={'figure.figsize':(20,10)})
@@ -24,7 +21,7 @@ def scatterplot_between_numerical_features(data, x_num_column, y_num_column, cat
 
 def violinplot_of_categorical_with_numerical_feature(data, cat_column, num_column):
     
-    print("Compare Category - Violinplot")
+    print("Violinplot of numerical feature "+num_column+" across categorical feature "+num_column)
     
     # Show vilionplots to compare a categorical feature with Numerical feature
     fig = sns.catplot(x=cat_column, y=num_column, kind='violin', data=data, aspect=3)
@@ -43,13 +40,13 @@ def pivot_data(data, cat_index, cat_columns, num_values, agg_method):
 
 #=================================================================================================
 
-def eda_numcat(data, x, y, method="pps", hue=None, values=None, aggfunc="mean"):
+def eda_numcat(data, x, y=None, method="pps", hue=None, values=None, aggfunc="mean"):
     
     try:
         
         # Default method
         if method=="pps":
-            return find_predictive_power_score(data)
+            return find_predictive_power_score(data, x)
         
         if method=="relationship":
             scatterplot_between_numerical_features(data, x, y, hue)

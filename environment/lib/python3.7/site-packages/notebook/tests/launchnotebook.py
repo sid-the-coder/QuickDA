@@ -21,7 +21,7 @@ import zmq
 
 import jupyter_core.paths
 from traitlets.config import Config
-from ..notebookapp import NotebookApp
+from ..notebookapp import NotebookApp, urlencode_unix_socket
 from ..utils import url_path_join
 from ipython_genutils.tempdir import TemporaryDirectory
 
@@ -52,10 +52,10 @@ class NotebookTestBase(TestCase):
         url = cls.base_url() + 'api/contents'
         for _ in range(int(MAX_WAITTIME/POLL_INTERVAL)):
             try:
-                requests.get(url)
+                cls.fetch_url(url)
             except Exception as e:
                 if not cls.notebook_thread.is_alive():
-                    raise RuntimeError("The notebook server failed to start")
+                    raise RuntimeError("The notebook server failed to start") from e
                 time.sleep(POLL_INTERVAL)
             else:
                 return
@@ -75,6 +75,10 @@ class NotebookTestBase(TestCase):
         if cls.token:
             headers['Authorization'] = 'token %s' % cls.token
         return headers
+
+    @staticmethod
+    def fetch_url(url):
+        return requests.get(url)
 
     @classmethod
     def request(cls, verb, path, **kwargs):
@@ -104,7 +108,11 @@ class NotebookTestBase(TestCase):
     @classmethod
     def get_argv(cls):
         return []
-    
+
+    @classmethod
+    def get_bind_args(cls):
+        return dict(port=cls.port)
+
     @classmethod
     def setup_class(cls):
         cls.tmp_dir = TemporaryDirectory()
@@ -116,7 +124,7 @@ class NotebookTestBase(TestCase):
                 if e.errno != errno.EEXIST:
                     raise
             return path
-        
+
         cls.home_dir = tmp('home')
         data_dir = cls.data_dir = tmp('data')
         config_dir = cls.config_dir = tmp('config')
@@ -144,8 +152,8 @@ class NotebookTestBase(TestCase):
         started = Event()
         def start_thread():
             try:
+                bind_args = cls.get_bind_args()
                 app = cls.notebook = NotebookApp(
-                    port=cls.port,
                     port_retries=0,
                     open_browser=False,
                     config_dir=cls.config_dir,
@@ -156,6 +164,7 @@ class NotebookTestBase(TestCase):
                     config=config,
                     allow_root=True,
                     token=cls.token,
+                    **bind_args
                 )
                 if 'asyncio' in sys.modules:
                           app._init_asyncio_patch()
@@ -204,6 +213,28 @@ class NotebookTestBase(TestCase):
     @classmethod
     def base_url(cls):
         return 'http://localhost:%i%s' % (cls.port, cls.url_prefix)
+
+
+class UNIXSocketNotebookTestBase(NotebookTestBase):
+    # Rely on `/tmp` to avoid any Linux socket length max buffer
+    # issues. Key on PID for process-wise concurrency.
+    sock = '/tmp/.notebook.%i.sock' % os.getpid()
+
+    @classmethod
+    def get_bind_args(cls):
+        return dict(sock=cls.sock)
+
+    @classmethod
+    def base_url(cls):
+        return '%s%s' % (urlencode_unix_socket(cls.sock), cls.url_prefix)
+
+    @staticmethod
+    def fetch_url(url):
+        # Lazily import so it is not required at the module level
+        if os.name != 'nt':
+            import requests_unixsocket
+        with requests_unixsocket.monkeypatch():
+            return requests.get(url)
 
 
 @contextmanager

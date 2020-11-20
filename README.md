@@ -104,4 +104,3 @@ pip3 install quickda
 1. **Basic Preprocessing for Text Data** - Tokenization, Normalization, Noise Removal, Lemmatization 
 2. **EDA for Text Data** - NGrams, POS tagging, Word Cloud, Sentiment Analysis
 3. **Quick Insight Generation for all EDA steps** - Generate easy-to-read textual insights
-3. **Quick Excel View of Data** - Filter, Sort, Quick Pivot Tables inside Jupyter Notebook

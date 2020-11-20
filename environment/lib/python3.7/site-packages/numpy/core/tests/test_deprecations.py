@@ -3,15 +3,12 @@ Tests related to deprecation warnings. Also a convenient place
 to document how deprecations should eventually be turned into errors.
 
 """
-from __future__ import division, absolute_import, print_function
-
 import datetime
-import sys
 import operator
 import warnings
 import pytest
-import shutil
 import tempfile
+import re
 
 import numpy as np
 from numpy.testing import (
@@ -27,7 +24,7 @@ except ImportError:
     _has_pytz = False
 
 
-class _DeprecationTestCase(object):
+class _DeprecationTestCase:
     # Just as warning: warnings uses re.match, so the start of this message
     # must match.
     message = ''
@@ -137,7 +134,7 @@ class _VisibleDeprecationTestCase(_DeprecationTestCase):
     warning_cls = np.VisibleDeprecationWarning
 
 
-class TestNonTupleNDIndexDeprecation(object):
+class TestNonTupleNDIndexDeprecation:
     def test_basic(self):
         a = np.zeros((5, 5))
         with warnings.catch_warnings():
@@ -189,7 +186,7 @@ class TestComparisonDeprecations(_DeprecationTestCase):
         assert_warns(FutureWarning, lambda: a == [])
 
     def test_void_dtype_equality_failures(self):
-        class NotArray(object):
+        class NotArray:
             def __array__(self):
                 raise TypeError
 
@@ -229,15 +226,10 @@ class TestComparisonDeprecations(_DeprecationTestCase):
             struct = np.zeros(2, dtype="i4,i4")
             for arg2 in [struct, "a"]:
                 for f in [operator.lt, operator.le, operator.gt, operator.ge]:
-                    if sys.version_info[0] >= 3:
-                        # py3
-                        with warnings.catch_warnings() as l:
-                            warnings.filterwarnings("always")
-                            assert_raises(TypeError, f, arg1, arg2)
-                            assert_(not l)
-                    else:
-                        # py2
-                        assert_warns(DeprecationWarning, f, arg1, arg2)
+                    with warnings.catch_warnings() as l:
+                        warnings.filterwarnings("always")
+                        assert_raises(TypeError, f, arg1, arg2)
+                        assert_(not l)
 
 
 class TestDatetime64Timezone(_DeprecationTestCase):
@@ -334,15 +326,12 @@ class TestNumericStyleTypecodes(_DeprecationTestCase):
             'Int8', 'Int16', 'Int32', 'Int64', 'Object0', 'Timedelta64',
             'UInt8', 'UInt16', 'UInt32', 'UInt64', 'Void0'
             ]
-        if sys.version_info[0] < 3:
-            deprecated_types.extend(['Unicode0', 'String0'])
-
         for dt in deprecated_types:
             self.assert_deprecated(np.dtype, exceptions=(TypeError,),
                                    args=(dt,))
 
 
-class TestTestDeprecated(object):
+class TestTestDeprecated:
     def test_assert_deprecated(self):
         test_case_instance = _DeprecationTestCase()
         test_case_instance.setup()
@@ -355,28 +344,6 @@ class TestTestDeprecated(object):
 
         test_case_instance.assert_deprecated(foo)
         test_case_instance.teardown()
-
-
-class TestClassicIntDivision(_DeprecationTestCase):
-    """
-    See #7949. Deprecate the numeric-style dtypes with -3 flag in python 2
-    if used for division
-    List of data types: https://docs.scipy.org/doc/numpy/user/basics.types.html
-    """
-    def test_int_dtypes(self):
-        #scramble types and do some mix and match testing
-        deprecated_types = [
-           'bool_', 'int_', 'intc', 'uint8', 'int8', 'uint64', 'int32', 'uint16',
-           'intp', 'int64', 'uint32', 'int16'
-            ]
-        if sys.version_info[0] < 3 and sys.py3kwarning:
-            import operator as op
-            dt2 = 'bool_'
-            for dt1 in deprecated_types:
-                a = np.array([1,2,3], dtype=dt1)
-                b = np.array([1,2,3], dtype=dt2)
-                self.assert_deprecated(op.div, args=(a,b))
-                dt2 = dt1
 
 
 class TestNonNumericConjugate(_DeprecationTestCase):
@@ -568,3 +535,86 @@ class TestNonZero(_DeprecationTestCase):
     def test_zerod(self):
         self.assert_deprecated(lambda: np.nonzero(np.array(0)))
         self.assert_deprecated(lambda: np.nonzero(np.array(1)))
+
+
+def test_deprecate_ragged_arrays():
+    # 2019-11-29 1.19.0
+    #
+    # NEP 34 deprecated automatic object dtype when creating ragged
+    # arrays. Also see the "ragged" tests in `test_multiarray`
+    #
+    # emits a VisibleDeprecationWarning
+    arg = [1, [2, 3]]
+    with assert_warns(np.VisibleDeprecationWarning):
+        np.array(arg)
+
+
+class TestToString(_DeprecationTestCase):
+    # 2020-03-06 1.19.0
+    message = re.escape("tostring() is deprecated. Use tobytes() instead.")
+
+    def test_tostring(self):
+        arr = np.array(list(b"test\xFF"), dtype=np.uint8)
+        self.assert_deprecated(arr.tostring)
+
+    def test_tostring_matches_tobytes(self):
+        arr = np.array(list(b"test\xFF"), dtype=np.uint8)
+        b = arr.tobytes()
+        with assert_warns(DeprecationWarning):
+            s = arr.tostring()
+        assert s == b
+
+
+class TestDTypeCoercion(_DeprecationTestCase):
+    # 2020-02-06 1.19.0
+    message = "Converting .* to a dtype .*is deprecated"
+    deprecated_types = [
+        # The builtin scalar super types:
+        np.generic, np.flexible, np.number,
+        np.inexact, np.floating, np.complexfloating,
+        np.integer, np.unsignedinteger, np.signedinteger,
+        # character is a deprecated S1 special case:
+        np.character,
+    ]
+
+    def test_dtype_coercion(self):
+        for scalar_type in self.deprecated_types:
+            self.assert_deprecated(np.dtype, args=(scalar_type,))
+
+    def test_array_construction(self):
+        for scalar_type in self.deprecated_types:
+            self.assert_deprecated(np.array, args=([], scalar_type,))
+
+    def test_not_deprecated(self):
+        # All specific types are not deprecated:
+        for group in np.sctypes.values():
+            for scalar_type in group:
+                self.assert_not_deprecated(np.dtype, args=(scalar_type,))
+
+        for scalar_type in [type, dict, list, tuple]:
+            # Typical python types are coerced to object currently:
+            self.assert_not_deprecated(np.dtype, args=(scalar_type,))
+
+
+class BuiltInRoundComplexDType(_DeprecationTestCase):
+    # 2020-03-31 1.19.0
+    deprecated_types = [np.csingle, np.cdouble, np.clongdouble]
+    not_deprecated_types = [
+        np.int8, np.int16, np.int32, np.int64,
+        np.uint8, np.uint16, np.uint32, np.uint64,
+        np.float16, np.float32, np.float64,
+    ]
+
+    def test_deprecated(self):
+        for scalar_type in self.deprecated_types:
+            scalar = scalar_type(0)
+            self.assert_deprecated(round, args=(scalar,))
+            self.assert_deprecated(round, args=(scalar, 0))
+            self.assert_deprecated(round, args=(scalar,), kwargs={'ndigits': 0})
+    
+    def test_not_deprecated(self):
+        for scalar_type in self.not_deprecated_types:
+            scalar = scalar_type(0)
+            self.assert_not_deprecated(round, args=(scalar,))
+            self.assert_not_deprecated(round, args=(scalar, 0))
+            self.assert_not_deprecated(round, args=(scalar,), kwargs={'ndigits': 0})

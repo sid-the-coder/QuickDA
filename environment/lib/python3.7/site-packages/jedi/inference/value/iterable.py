@@ -23,6 +23,9 @@ from jedi.inference.value.dynamic_arrays import check_array_additions
 
 
 class IterableMixin(object):
+    def py__next__(self, contextualized_node=None):
+        return self.py__iter__(contextualized_node)
+
     def py__stop_iteration_returns(self):
         return ValueSet([compiled.builtin_from_name(self.inference_state, u'None')])
 
@@ -46,25 +49,24 @@ class GeneratorBase(LazyAttributeOverwrite, IterableMixin):
     array_type = None
 
     def _get_wrapped_value(self):
-        generator, = self.inference_state.typing_module \
-            .py__getattribute__('Generator') \
-            .execute_annotation()
-        return generator
+        instance, = self._get_cls().execute_annotation()
+        return instance
 
-    def is_instance(self):
-        return False
+    def _get_cls(self):
+        generator, = self.inference_state.typing_module.py__getattribute__('Generator')
+        return generator
 
     def py__bool__(self):
         return True
 
     @publish_method('__iter__')
-    def py__iter__(self, contextualized_node=None):
+    def _iter(self, arguments):
         return ValueSet([self])
 
     @publish_method('send')
     @publish_method('next', python_version_match=2)
     @publish_method('__next__', python_version_match=3)
-    def py__next__(self):
+    def _next(self, arguments):
         return ValueSet.from_sets(lazy_value.infer() for lazy_value in self.py__iter__())
 
     def py__stop_iteration_returns(self):
@@ -74,6 +76,12 @@ class GeneratorBase(LazyAttributeOverwrite, IterableMixin):
     def name(self):
         return compiled.CompiledValueName(self, 'Generator')
 
+    def get_annotated_class_object(self):
+        from jedi.inference.gradual.generics import TupleGenericManager
+        gen_values = self.merge_types_of_iterate().py__class__()
+        gm = TupleGenericManager((gen_values, NO_VALUES, NO_VALUES))
+        return self._get_cls().with_generics(gm)
+
 
 class Generator(GeneratorBase):
     """Handling of `yield` functions."""
@@ -82,6 +90,9 @@ class Generator(GeneratorBase):
         self._func_execution_context = func_execution_context
 
     def py__iter__(self, contextualized_node=None):
+        iterators = self._func_execution_context.infer_annotations()
+        if iterators:
+            return iterators.iterate(contextualized_node)
         return self._func_execution_context.get_yield_lazy_values()
 
     def py__stop_iteration_returns(self):
@@ -192,13 +203,17 @@ class Sequence(LazyAttributeOverwrite, IterableMixin):
     def _get_generics(self):
         return (self.merge_types_of_iterate().py__class__(),)
 
+    @inference_state_method_cache(default=())
+    def _cached_generics(self):
+        return self._get_generics()
+
     def _get_wrapped_value(self):
         from jedi.inference.gradual.base import GenericClass
         from jedi.inference.gradual.generics import TupleGenericManager
         klass = compiled.builtin_from_name(self.inference_state, self.array_type)
         c, = GenericClass(
             klass,
-            TupleGenericManager(self._get_generics())
+            TupleGenericManager(self._cached_generics())
         ).execute_annotation()
         return c
 
@@ -286,12 +301,12 @@ class DictComprehension(ComprehensionMixin, Sequence, _DictKeyMixin):
         return ValueSet.from_sets(values for keys, values in self._iterate())
 
     @publish_method('values')
-    def _imitate_values(self):
+    def _imitate_values(self, arguments):
         lazy_value = LazyKnownValues(self._dict_values())
         return ValueSet([FakeList(self.inference_state, [lazy_value])])
 
     @publish_method('items')
-    def _imitate_items(self):
+    def _imitate_items(self, arguments):
         lazy_values = [
             LazyKnownValue(
                 FakeTuple(
@@ -453,12 +468,12 @@ class DictLiteralValue(_DictMixin, SequenceLiteralValue, _DictKeyMixin):
             yield LazyKnownValues(types)
 
     @publish_method('values')
-    def _imitate_values(self):
+    def _imitate_values(self, arguments):
         lazy_value = LazyKnownValues(self._dict_values())
         return ValueSet([FakeList(self.inference_state, [lazy_value])])
 
     @publish_method('items')
-    def _imitate_items(self):
+    def _imitate_items(self, arguments):
         lazy_values = [
             LazyKnownValue(FakeTuple(
                 self.inference_state,
@@ -548,7 +563,7 @@ class FakeDict(_DictMixin, Sequence, _DictKeyMixin):
         return lazy_value.infer()
 
     @publish_method('values')
-    def _values(self):
+    def _values(self, arguments):
         return ValueSet([FakeTuple(
             self.inference_state,
             [LazyKnownValues(self._dict_values())]

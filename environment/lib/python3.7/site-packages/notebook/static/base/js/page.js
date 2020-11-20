@@ -27,7 +27,7 @@ define([
         // - header change
         // - page load
         var _handle_resize = $.proxy(this._resize_site, this);
-        
+
         $(window).resize(_handle_resize);
 
         // On document ready, resize codemirror.
@@ -60,8 +60,6 @@ define([
         this.site_div_element.css('display', 'block');
         this._resize_site();
     };
-
-
 
     Page.prototype._resize_site = function(e) {
         /**

@@ -2,6 +2,7 @@ README.md
 setup.py
 quickda/__init__.py
 quickda/clean_data.py
+quickda/config.py
 quickda/explore_categoric.py
 quickda/explore_data.py
 quickda/explore_numeric.py

@@ -116,9 +116,9 @@ class FloatingAxisArtistHelper(AxisArtistHelper.Floating):
             lon_max = min(e_max, lon_max)
 
         lon_levs, lon_n, lon_factor = \
-                  grid_finder.grid_locator1(lon_min, lon_max)
+            grid_finder.grid_locator1(lon_min, lon_max)
         lat_levs, lat_n, lat_factor = \
-                  grid_finder.grid_locator2(lat_min, lat_max)
+            grid_finder.grid_locator2(lat_min, lat_max)
 
         if self.nth_coord == 0:
             xx0 = np.full(self._line_num_points, self.value, type(self.value))
@@ -312,7 +312,7 @@ class GridHelperCurveLinear(GridHelperBase):
         self.invalidate()
 
     def _update(self, x1, x2, y1, y2):
-        "bbox in 0-based image coordinates"
+        """bbox in 0-based image coordinates"""
         # update wcsgrid
         if self.valid() and self._old_values == (x1, x2, y1, y2):
             return
@@ -360,9 +360,6 @@ class GridHelperCurveLinear(GridHelperBase):
         axisline.line.set_clip_box(axisline.axes.bbox)
         # axisline.major_ticklabels.set_visible(True)
         # axisline.minor_ticklabels.set_visible(False)
-
-        # axisline.major_ticklabels.set_rotate_along_line(True)
-        # axisline.set_rotate_label_along_line(True)
 
         return axisline
 

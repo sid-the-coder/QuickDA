@@ -7,6 +7,8 @@ from pandas.core.dtypes.inference import is_list_like
 
 from pandas.core.api import DataFrame
 
+from pandas.io.common import stringify_path
+
 
 def read_spss(
     path: Union[str, Path],
@@ -20,7 +22,7 @@ def read_spss(
 
     Parameters
     ----------
-    path : string or Path
+    path : str or Path
         File path.
     usecols : list-like, optional
         Return a subset of the columns. If None, return all columns.
@@ -40,6 +42,6 @@ def read_spss(
             usecols = list(usecols)  # pyreadstat requires a list
 
     df, _ = pyreadstat.read_sav(
-        path, usecols=usecols, apply_value_formats=convert_categoricals
+        stringify_path(path), usecols=usecols, apply_value_formats=convert_categoricals
     )
     return df

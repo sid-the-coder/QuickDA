@@ -1,6 +1,6 @@
 """
-This module contains all the 2D line class which can draw with a
-variety of line styles, markers and colors.
+The 2D line class which can draw with a variety of line styles, markers and
+colors.
 """
 
 # TODO: expose cap and join style attrs
@@ -9,13 +9,15 @@ import logging
 
 import numpy as np
 
+import matplotlib as mpl
 from . import artist, cbook, colors as mcolors, docstring, rcParams
 from .artist import Artist, allow_rasterization
 from .cbook import (
     _to_unmasked_float_array, ls_mapper, ls_mapper_r, STEP_LOOKUP_MAP)
 from .markers import MarkerStyle
 from .path import Path
-from .transforms import Bbox, TransformedPath
+from .transforms import (
+    Affine2D, Bbox, BboxTransformFrom, BboxTransformTo, TransformedPath)
 
 # Imported here for backward compatibility, even though they don't
 # really belong.
@@ -29,14 +31,14 @@ _log = logging.getLogger(__name__)
 
 
 def _get_dash_pattern(style):
-    """Convert linestyle -> dash pattern
-    """
+    """Convert linestyle to dash pattern."""
     # go from short hand -> full strings
     if isinstance(style, str):
         style = ls_mapper.get(style, style)
     # un-dashed styles
     if style in ['solid', 'None']:
-        offset, dashes = None, None
+        offset = 0
+        dashes = None
     # dashed styles
     elif style in ['dashed', 'dashdot', 'dotted']:
         offset = 0
@@ -44,11 +46,17 @@ def _get_dash_pattern(style):
     #
     elif isinstance(style, tuple):
         offset, dashes = style
+        if offset is None:
+            cbook.warn_deprecated(
+                "3.3", message="Passing the dash offset as None is deprecated "
+                "since %(since)s and support for it will be removed "
+                "%(removal)s; pass it as zero instead.")
+            offset = 0
     else:
         raise ValueError('Unrecognized linestyle: %s' % str(style))
 
     # normalize offset to be positive and shorter than the dash cycle
-    if dashes is not None and offset is not None:
+    if dashes is not None:
         dsum = sum(dashes)
         if dsum:
             offset %= dsum
@@ -59,14 +67,9 @@ def _get_dash_pattern(style):
 def _scale_dashes(offset, dashes, lw):
     if not rcParams['lines.scale_dashes']:
         return offset, dashes
-
-    scaled_offset = scaled_dashes = None
-    if offset is not None:
-        scaled_offset = offset * lw
-    if dashes is not None:
-        scaled_dashes = [x * lw if x is not None else None
-                         for x in dashes]
-
+    scaled_offset = offset * lw
+    scaled_dashes = ([x * lw if x is not None else None for x in dashes]
+                     if dashes is not None else None)
     return scaled_offset, scaled_dashes
 
 
@@ -119,10 +122,7 @@ def _mark_every_path(markevery, tpath, affine, ax_transform):
     codes, verts = tpath.codes, tpath.vertices
 
     def _slice_or_none(in_v, slc):
-        '''
-        Helper function to cope with `codes` being an
-        ndarray or `None`
-        '''
+        """Helper function to cope with `codes` being an ndarray or `None`."""
         if in_v is None:
             return None
         return in_v[slc]
@@ -189,10 +189,10 @@ def _mark_every_path(markevery, tpath, affine, ax_transform):
         # fancy indexing
         try:
             return Path(verts[markevery], _slice_or_none(codes, markevery))
-        except (ValueError, IndexError):
+        except (ValueError, IndexError) as err:
             raise ValueError(
                 f"markevery={markevery!r} is iterable but not a valid numpy "
-                f"fancy index")
+                f"fancy index") from err
     else:
         raise ValueError(f"markevery={markevery!r} is not a recognized value")
 
@@ -335,16 +335,6 @@ class Line2D(Artist):
         if solid_joinstyle is None:
             solid_joinstyle = rcParams['lines.solid_joinstyle']
 
-        if isinstance(linestyle, str):
-            ds, ls = self._split_drawstyle_linestyle(linestyle)
-            if ds is not None and drawstyle is not None and ds != drawstyle:
-                raise ValueError("Inconsistent drawstyle ({!r}) and linestyle "
-                                 "({!r})".format(drawstyle, linestyle))
-            linestyle = ls
-
-            if ds is not None:
-                drawstyle = ds
-
         if drawstyle is None:
             drawstyle = 'default'
 
@@ -400,8 +390,6 @@ class Line2D(Artist):
         self.update(kwargs)
         self.pickradius = pickradius
         self.ind_offset = 0
-        if isinstance(self._picker, Number):
-            self.pickradius = self._picker
 
         self._xorig = np.asarray([])
         self._yorig = np.asarray([])
@@ -417,19 +405,14 @@ class Line2D(Artist):
 
         self.set_data(xdata, ydata)
 
-    @cbook.deprecated("3.1")
-    @property
-    def verticalOffset(self):
-        return None
-
     def contains(self, mouseevent):
         """
-        Test whether the mouse event occurred on the line.  The pick
-        radius determines the precision of the location test (usually
-        within five points of the value).  Use
-        :meth:`~matplotlib.lines.Line2D.get_pickradius` or
-        :meth:`~matplotlib.lines.Line2D.set_pickradius` to view or
-        modify it.
+        Test whether *mouseevent* occurred on the line.
+
+        An event is deemed to have occurred "on" the line if it is less
+        than ``self.pickradius`` (default: 5 points) away from it.  Use
+        `~.Line2D.get_pickradius` or `~.Line2D.set_pickradius` to get or set
+        the pick radius.
 
         Parameters
         ----------
@@ -449,9 +432,6 @@ class Line2D(Artist):
         inside, info = self._default_contains(mouseevent)
         if inside is not None:
             return inside, info
-
-        if not isinstance(self.pickradius, Number):
-            raise ValueError("pick radius should be a distance")
 
         # Make sure we have data to plot
         if self._invalidy or self._invalidx:
@@ -501,10 +481,11 @@ class Line2D(Artist):
 
         See `.contains` for more details.
         """
-        return self.pickradius
+        return self._pickradius
 
     def set_pickradius(self, d):
-        """Set the pick radius used for containment tests.
+        """
+        Set the pick radius used for containment tests.
 
         See `.contains` for more details.
 
@@ -513,7 +494,11 @@ class Line2D(Artist):
         d : float
             Pick radius, in points.
         """
-        self.pickradius = d
+        if not isinstance(d, Number) or d < 0:
+            raise ValueError("pick radius should be a distance")
+        self._pickradius = d
+
+    pickradius = property(get_pickradius, set_pickradius)
 
     def get_fillstyle(self):
         """
@@ -538,21 +523,21 @@ class Line2D(Artist):
               half of the marker is filled with *markerfacecoloralt*.
             - 'none': No filling.
 
-            For examples see
-            :doc:`/gallery/lines_bars_and_markers/marker_fillstyle_reference`.
+            For examples see :ref:`marker_fill_styles`.
         """
         self._marker.set_fillstyle(fs)
         self.stale = True
 
     def set_markevery(self, every):
-        """Set the markevery property to subsample the plot when using markers.
+        """
+        Set the markevery property to subsample the plot when using markers.
 
-        e.g., if `every=5`, every 5-th marker will be plotted.
+        e.g., if ``every=5``, every 5-th marker will be plotted.
 
         Parameters
         ----------
         every : None or int or (int, int) or slice or List[int] or float or \
-(float, float)
+(float, float) or List[bool]
             Which markers to plot.
 
             - every=None, every point will be plotted.
@@ -564,6 +549,8 @@ class Line2D(Artist):
               point start, up to but not including point end, will be plotted.
             - every=[i, j, m, n], only markers at points i, j, m, and n
               will be plotted.
+            - every=[True, False, True], positions that are True will be
+              plotted.
             - every=0.1, (i.e. a float) then markers will be spaced at
               approximately equal distances along the line; the distance
               along the line between markers is determined by multiplying the
@@ -595,9 +582,8 @@ class Line2D(Artist):
         axes-bounding-box-diagonal regardless of the actual axes data limits.
 
         """
-        if self._markevery != every:
-            self.stale = True
         self._markevery = every
+        self.stale = True
 
     def get_markevery(self):
         """
@@ -608,16 +594,13 @@ class Line2D(Artist):
         return self._markevery
 
     def set_picker(self, p):
-        """Sets the event picker details for the line.
-
-        Parameters
-        ----------
-        p : float or callable[[Artist, Event], Tuple[bool, dict]]
-            If a float, it is used as the pick radius in points.
-        """
-        if callable(p):
-            self._contains = p
-        else:
+        # docstring inherited
+        if isinstance(p, Number) and not isinstance(p, bool):
+            # After deprecation, the whole method can be deleted and inherited.
+            cbook.warn_deprecated(
+                "3.3", message="Setting the line's pick radius via set_picker "
+                "is deprecated since %(since)s and will be removed "
+                "%(removal)s; use set_pickradius instead.")
             self.pickradius = p
         self._picker = p
 
@@ -690,8 +673,8 @@ class Line2D(Artist):
             if nanmask.any():
                 self._x_filled = self._x.copy()
                 indices = np.arange(len(x))
-                self._x_filled[nanmask] = np.interp(indices[nanmask],
-                        indices[~nanmask], self._x[~nanmask])
+                self._x_filled[nanmask] = np.interp(
+                    indices[nanmask], indices[~nanmask], self._x[~nanmask])
             else:
                 self._x_filled = self._x
 
@@ -750,7 +733,7 @@ class Line2D(Artist):
 
     @allow_rasterization
     def draw(self, renderer):
-        # docstring inherited from Artist.draw.
+        # docstring inherited
 
         if not self.get_visible():
             return
@@ -779,6 +762,7 @@ class Line2D(Artist):
             if len(tpath.vertices):
                 gc = renderer.new_gc()
                 self._set_gc_clip(gc)
+                gc.set_url(self.get_url())
 
                 lc_rgba = mcolors.to_rgba(self._color, self._alpha)
                 gc.set_foreground(lc_rgba, isRGBA=True)
@@ -805,6 +789,7 @@ class Line2D(Artist):
         if self._marker and self._markersize > 0:
             gc = renderer.new_gc()
             self._set_gc_clip(gc)
+            gc.set_url(self.get_url())
             gc.set_linewidth(self._markeredgewidth)
             gc.set_antialiased(self._antialiased)
 
@@ -835,7 +820,7 @@ class Line2D(Artist):
                     self.recache()
                     self._transform_path(subslice)
                     tpath, affine = (self._get_transformed_path()
-                                    .get_transformed_points_and_affine())
+                                     .get_transformed_points_and_affine())
             else:
                 tpath, affine = (self._get_transformed_path()
                                  .get_transformed_points_and_affine())
@@ -951,12 +936,11 @@ class Line2D(Artist):
         return self._markeredgewidth
 
     def _get_markerfacecolor(self, alt=False):
+        if self.get_fillstyle() == 'none':
+            return 'none'
         fc = self._markerfacecoloralt if alt else self._markerfacecolor
         if cbook._str_lower_equal(fc, 'auto'):
-            if self.get_fillstyle() == 'none':
-                return 'none'
-            else:
-                return self._color
+            return self._color
         else:
             return fc
 
@@ -1111,39 +1095,6 @@ class Line2D(Artist):
         self._dashOffset, self._dashSeq = _scale_dashes(
             self._us_dashOffset, self._us_dashSeq, self._linewidth)
 
-    def _split_drawstyle_linestyle(self, ls):
-        """
-        Split drawstyle from linestyle string.
-
-        If *ls* is only a drawstyle default to returning a linestyle
-        of '-'.
-
-        Parameters
-        ----------
-        ls : str
-            The linestyle to be processed
-
-        Returns
-        -------
-        ret_ds : str or None
-            If the linestyle string does not contain a drawstyle prefix
-            return None, otherwise return it.
-
-        ls : str
-            The linestyle with the drawstyle (if any) stripped.
-        """
-        for ds in self.drawStyleKeys:  # long names are first in the list
-            if ls.startswith(ds):
-                cbook.warn_deprecated(
-                    "3.1", message="Passing the drawstyle with the linestyle "
-                    "as a single string is deprecated since Matplotlib "
-                    "%(since)s and support will be removed %(removal)s; "
-                    "please pass the drawstyle separately using the drawstyle "
-                    "keyword argument to Line2D or set_drawstyle() method (or "
-                    "ds/set_ds()).")
-                return ds, ls[len(ds):] or '-'
-        return None, ls
-
     def set_linestyle(self, ls):
         """
         Set the linestyle of the line.
@@ -1176,10 +1127,6 @@ class Line2D(Artist):
             For examples see :doc:`/gallery/lines_bars_and_markers/linestyles`.
         """
         if isinstance(ls, str):
-            ds, ls = self._split_drawstyle_linestyle(ls)
-            if ds is not None:
-                self.set_drawstyle(ds)
-
             if ls in [' ', '', 'none']:
                 ls = 'None'
 
@@ -1203,7 +1150,7 @@ class Line2D(Artist):
 
         Parameters
         ----------
-        marker : marker style
+        marker : marker style string, `~.path.Path` or `~.markers.MarkerStyle`
             See `~matplotlib.markers` for full description of possible
             arguments.
         """
@@ -1361,8 +1308,7 @@ class Line2D(Artist):
         s : {'miter', 'round', 'bevel'}
             For examples see :doc:`/gallery/lines_bars_and_markers/joinstyle`.
         """
-        s = s.lower()
-        cbook._check_in_list(self.validJoin, s=s)
+        mpl.rcsetup.validate_joinstyle(s)
         if self._dashjoinstyle != s:
             self.stale = True
         self._dashjoinstyle = s
@@ -1376,8 +1322,7 @@ class Line2D(Artist):
         s : {'miter', 'round', 'bevel'}
             For examples see :doc:`/gallery/lines_bars_and_markers/joinstyle`.
         """
-        s = s.lower()
-        cbook._check_in_list(self.validJoin, s=s)
+        mpl.rcsetup.validate_joinstyle(s)
         if self._solidjoinstyle != s:
             self.stale = True
         self._solidjoinstyle = s
@@ -1407,8 +1352,7 @@ class Line2D(Artist):
         s : {'butt', 'round', 'projecting'}
             For examples see :doc:`/gallery/lines_bars_and_markers/joinstyle`.
         """
-        s = s.lower()
-        cbook._check_in_list(self.validCap, s=s)
+        mpl.rcsetup.validate_capstyle(s)
         if self._dashcapstyle != s:
             self.stale = True
         self._dashcapstyle = s
@@ -1422,8 +1366,7 @@ class Line2D(Artist):
         s : {'butt', 'round', 'projecting'}
             For examples see :doc:`/gallery/lines_bars_and_markers/joinstyle`.
         """
-        s = s.lower()
-        cbook._check_in_list(self.validCap, s=s)
+        mpl.rcsetup.validate_capstyle(s)
         if self._solidcapstyle != s:
             self.stale = True
         self._solidcapstyle = s
@@ -1451,6 +1394,47 @@ class Line2D(Artist):
         See also `~.Line2D.set_linestyle`.
         """
         return self._linestyle in ('--', '-.', ':')
+
+
+class _AxLine(Line2D):
+    """
+    A helper class that implements `~.Axes.axline`, by recomputing the artist
+    transform at draw time.
+    """
+
+    def get_transform(self):
+        ax = self.axes
+        (x1, y1), (x2, y2) = ax.transScale.transform([*zip(*self.get_data())])
+        dx = x2 - x1
+        dy = y2 - y1
+        if np.allclose(x1, x2):
+            if np.allclose(y1, y2):
+                raise ValueError(
+                    f"Cannot draw a line through two identical points "
+                    f"(x={self.get_xdata()}, y={self.get_ydata()})")
+            # First send y1 to 0 and y2 to 1.
+            return (Affine2D.from_values(1, 0, 0, 1 / dy, 0, -y1 / dy)
+                    + ax.get_xaxis_transform(which="grid"))
+        if np.allclose(y1, y2):
+            # First send x1 to 0 and x2 to 1.
+            return (Affine2D.from_values(1 / dx, 0, 0, 1, -x1 / dx, 0)
+                    + ax.get_yaxis_transform(which="grid"))
+        (vxlo, vylo), (vxhi, vyhi) = ax.transScale.transform(ax.viewLim)
+        # General case: find intersections with view limits in either
+        # direction, and draw between the middle two points.
+        _, start, stop, _ = sorted([
+            (vxlo, y1 + (vxlo - x1) * dy / dx),
+            (vxhi, y1 + (vxhi - x1) * dy / dx),
+            (x1 + (vylo - y1) * dx / dy, vylo),
+            (x1 + (vyhi - y1) * dx / dy, vyhi),
+        ])
+        return (BboxTransformFrom(Bbox([*zip(*self.get_data())]))
+                + BboxTransformTo(Bbox([start, stop]))
+                + ax.transLimits + ax.transAxes)
+
+    def draw(self, renderer):
+        self._transformed_path = None  # Force regen.
+        super().draw(renderer)
 
 
 class VertexSelector:
@@ -1509,8 +1493,12 @@ class VertexSelector:
         Default "do nothing" implementation of the
         :meth:`process_selected` method.
 
-        *ind* are the indices of the selected vertices.  *xs* and *ys*
-        are the coordinates of the selected vertices.
+        Parameters
+        ----------
+        ind : list of int
+            The indices of the selected vertices.
+        xs, ys : array-like
+            The coordinates of the selected vertices.
         """
         pass
 

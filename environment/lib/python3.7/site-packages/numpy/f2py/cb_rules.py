@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 
 Build call-back mechanism for f2py2e.
@@ -13,8 +13,6 @@ $Date: 2005/07/20 11:27:58 $
 Pearu Peterson
 
 """
-from __future__ import division, absolute_import, print_function
-
 from . import __version__
 from .auxfuncs import (
     applyrules, debugcapi, dictappend, errmess, getargs, hasnote, isarray,
@@ -438,7 +436,6 @@ cb_map = {}
 
 
 def buildcallbacks(m):
-    global cb_map
     cb_map[m['name']] = []
     for bi in m['body']:
         if bi['block'] == 'interface':
@@ -450,7 +447,6 @@ def buildcallbacks(m):
 
 
 def buildcallback(rout, um):
-    global cb_map
     from . import capi_maps
 
     outmess('\tConstructing call-back function "cb_%s_in_%s"\n' %

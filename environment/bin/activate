@@ -46,7 +46,7 @@ deactivate () {
 # unset irrelevant variables
 deactivate nondestructive
 
-VIRTUAL_ENV='/Users/Sidheswar/Downloads/Github/Easy-Data-Analysis-With-Pandas/environment'
+VIRTUAL_ENV='/Users/Sidheswar/Downloads/Github/QuickDA/environment'
 export VIRTUAL_ENV
 
 _OLD_VIRTUAL_PATH="$PATH"

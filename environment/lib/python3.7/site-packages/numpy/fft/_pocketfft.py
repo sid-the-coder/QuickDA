@@ -27,8 +27,6 @@ n = n-dimensional transform
 behavior.)
 
 """
-from __future__ import division, absolute_import, print_function
-
 __all__ = ['fft', 'ifft', 'rfft', 'irfft', 'hfft', 'ihfft', 'rfftn',
            'irfftn', 'rfft2', 'irfft2', 'fft2', 'ifft2', 'fftn', 'ifftn']
 
@@ -61,12 +59,11 @@ def _raw_fft(a, n, axis, is_real, is_forward, inv_norm):
 
     if a.shape[axis] != n:
         s = list(a.shape)
+        index = [slice(None)]*len(s)
         if s[axis] > n:
-            index = [slice(None)]*len(s)
             index[axis] = slice(0, n)
             a = a[tuple(index)]
         else:
-            index = [slice(None)]*len(s)
             index[axis] = slice(0, s[axis])
             s[axis] = n
             z = zeros(s, a.dtype.char)
@@ -527,8 +524,8 @@ def hfft(a, n=None, axis=-1, norm=None):
     domain and is real in the frequency domain. So here it's `hfft` for
     which you must supply the length of the result if it is to be odd.
 
-    * even: ``ihfft(hfft(a, 2*len(a) - 2) == a``, within roundoff error,
-    * odd: ``ihfft(hfft(a, 2*len(a) - 1) == a``, within roundoff error.
+    * even: ``ihfft(hfft(a, 2*len(a) - 2)) == a``, within roundoff error,
+    * odd: ``ihfft(hfft(a, 2*len(a) - 1)) == a``, within roundoff error.
 
     The correct interpretation of the hermitian input depends on the length of
     the original data, as given by `n`. This is because each input shape could
@@ -607,8 +604,8 @@ def ihfft(a, n=None, axis=-1, norm=None):
     domain and is real in the frequency domain. So here it's `hfft` for
     which you must supply the length of the result if it is to be odd:
 
-    * even: ``ihfft(hfft(a, 2*len(a) - 2) == a``, within roundoff error,
-    * odd: ``ihfft(hfft(a, 2*len(a) - 1) == a``, within roundoff error.
+    * even: ``ihfft(hfft(a, 2*len(a) - 2)) == a``, within roundoff error,
+    * odd: ``ihfft(hfft(a, 2*len(a) - 1)) == a``, within roundoff error.
 
     Examples
     --------

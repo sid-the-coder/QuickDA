@@ -5,7 +5,7 @@ import urllib.parse
 
 import numpy as np
 
-from matplotlib import _text_layout, cbook, dviread, font_manager, rcParams
+from matplotlib import _text_layout, dviread, font_manager, rcParams
 from matplotlib.font_manager import FontProperties, get_font
 from matplotlib.ft2font import LOAD_NO_HINTING, LOAD_TARGET_LIGHT
 from matplotlib.mathtext import MathTextParser
@@ -51,18 +51,8 @@ class TextToPath:
         char_id = urllib.parse.quote('%s-%d' % (ps_name, ccode))
         return char_id
 
-    @cbook.deprecated(
-        "3.1",
-        alternative="font.get_path() and manual translation of the vertices")
-    def glyph_to_path(self, font, currx=0.):
-        """Convert the *font*'s current glyph to a (vertices, codes) pair."""
-        verts, codes = font.get_path()
-        if currx != 0.0:
-            verts[:, 0] += currx
-        return verts, codes
-
     def get_text_width_height_descent(self, s, prop, ismath):
-        if rcParams['text.usetex']:
+        if ismath == "TeX":
             texmanager = self.get_texmanager()
             fontsize = prop.get_size_in_points()
             w, h, d = texmanager.get_text_width_height_descent(s, fontsize,
@@ -89,35 +79,34 @@ class TextToPath:
         d /= 64.0
         return w * scale, h * scale, d * scale
 
-    @cbook._delete_parameter("3.1", "usetex")
-    def get_text_path(self, prop, s, ismath=False, usetex=False):
+    def get_text_path(self, prop, s, ismath=False):
         """
         Convert text *s* to path (a tuple of vertices and codes for
         matplotlib.path.Path).
 
         Parameters
         ----------
-        prop : `matplotlib.font_manager.FontProperties` instance
+        prop : `~matplotlib.font_manager.FontProperties`
             The font properties for the text.
 
         s : str
             The text to be converted.
 
         ismath : {False, True, "TeX"}
-            If True, use mathtext parser.  If "TeX", use tex for renderering.
-
-        usetex : bool, optional
-            If set, forces *ismath* to True.  This parameter is deprecated.
+            If True, use mathtext parser.  If "TeX", use tex for rendering.
 
         Returns
         -------
-        verts, codes : tuple of lists
-            *verts*  is a list of numpy arrays containing the x and y
-            coordinates of the vertices. *codes* is a list of path codes.
+        verts : list
+            A list of numpy arrays containing the x and y coordinates of the
+            vertices.
+
+        codes : list
+            A list of path codes.
 
         Examples
         --------
-        Create a list of vertices and codes from a text, and create a `Path`
+        Create a list of vertices and codes from a text, and create a `.Path`
         from those::
 
             from matplotlib.path import Path
@@ -130,8 +119,6 @@ class TextToPath:
 
         Also see `TextPath` for a more direct way to create a path from a text.
         """
-        if usetex:
-            ismath = "TeX"
         if ismath == "TeX":
             glyph_info, glyph_map, rects = self.get_glyphs_tex(prop, s)
         elif not ismath:
@@ -302,15 +289,15 @@ class TextToPath:
     @functools.lru_cache(50)
     def _get_ps_font_and_encoding(texname):
         tex_font_map = dviread.PsfontsMap(dviread.find_tex_file('pdftex.map'))
-        font_bunch = tex_font_map[texname]
-        if font_bunch.filename is None:
+        psfont = tex_font_map[texname]
+        if psfont.filename is None:
             raise ValueError(
-                f"No usable font file found for {font_bunch.psname} "
-                f"({texname}). The font may lack a Type-1 version.")
+                f"No usable font file found for {psfont.psname} ({texname}). "
+                f"The font may lack a Type-1 version.")
 
-        font = get_font(font_bunch.filename)
+        font = get_font(psfont.filename)
 
-        if font_bunch.encoding:
+        if psfont.encoding:
             # If psfonts.map specifies an encoding, use it: it gives us a
             # mapping of glyph indices to Adobe glyph names; use it to convert
             # dvi indices to glyph names and use the FreeType-synthesized
@@ -318,7 +305,7 @@ class TextToPath:
             # FT_Get_Name_Index/get_name_index), and load the glyph using
             # FT_Load_Glyph/load_glyph.  (That charmap has a coverage at least
             # as good as, and possibly better than, the native charmaps.)
-            enc = dviread._parse_enc(font_bunch.encoding)
+            enc = dviread._parse_enc(psfont.encoding)
         else:
             # If psfonts.map specifies no encoding, the indices directly
             # map to the font's "native" charmap; so don't use the
@@ -337,7 +324,7 @@ class TextToPath:
                     break
             else:
                 _log.warning("No supported encoding in font (%s).",
-                             font_bunch.filename)
+                             psfont.filename)
             enc = None
 
         return font, enc
@@ -352,8 +339,7 @@ class TextPath(Path):
     """
 
     def __init__(self, xy, s, size=None, prop=None,
-                 _interpolation_steps=1, usetex=False,
-                 *args, **kwargs):
+                 _interpolation_steps=1, usetex=False):
         r"""
         Create a path from the text. Note that it simply is a path,
         not an artist. You need to use the `~.PathPatch` (or other artists)
@@ -376,11 +362,11 @@ class TextPath(Path):
             ``FontProperties`` with parameters from the
             :ref:`rcParams <matplotlib-rcparams>`.
 
-        _interpolation_steps : integer, optional
+        _interpolation_steps : int, optional
             (Currently ignored)
 
-        usetex : bool, optional
-            Whether to use tex rendering. Defaults to ``False``.
+        usetex : bool, default: False
+            Whether to use tex rendering.
 
         Examples
         --------
@@ -391,21 +377,15 @@ class TextPath(Path):
             from matplotlib.font_manager import FontProperties
 
             fp = FontProperties(family="Helvetica", style="italic")
-            path1 = TextPath((12,12), "ABC", size=12, prop=fp)
-            path2 = TextPath((0,0), r"$\frac{1}{2}$", size=12, usetex=True)
+            path1 = TextPath((12, 12), "ABC", size=12, prop=fp)
+            path2 = TextPath((0, 0), r"$\frac{1}{2}$", size=12, usetex=True)
 
         Also see :doc:`/gallery/text_labels_and_annotations/demo_text_path`.
         """
         # Circular import.
         from matplotlib.text import Text
 
-        if args or kwargs:
-            cbook.warn_deprecated(
-                "3.1", message="Additional arguments to TextPath used to be "
-                "ignored, but will trigger a TypeError %(removal)s.")
-
-        if prop is None:
-            prop = FontProperties()
+        prop = FontProperties._from_any(prop)
         if size is None:
             size = prop.get_size_in_points()
 
@@ -457,36 +437,3 @@ class TextPath(Path):
                   .translate(*self._xy))
             self._cached_vertices = tr.transform(self._vertices)
             self._invalid = False
-
-    @cbook.deprecated("3.1")
-    def is_math_text(self, s):
-        """
-        Returns True if the given string *s* contains any mathtext.
-        """
-        # copied from Text.is_math_text -JJL
-
-        # Did we find an even number of non-escaped dollar signs?
-        # If so, treat is as math text.
-        dollar_count = s.count(r'$') - s.count(r'\$')
-        even_dollars = (dollar_count > 0 and dollar_count % 2 == 0)
-
-        if rcParams['text.usetex']:
-            return s, 'TeX'
-
-        if even_dollars:
-            return s, True
-        else:
-            return s.replace(r'\$', '$'), False
-
-    @cbook.deprecated("3.1", alternative="TextPath")
-    def text_get_vertices_codes(self, prop, s, usetex):
-        """
-        Convert string *s* to a (vertices, codes) pair using font property
-        *prop*.
-        """
-        # Mostly copied from backend_svg.py.
-        if usetex:
-            return text_to_path.get_text_path(prop, s, usetex=True)
-        else:
-            clean_line, ismath = self.is_math_text(s)
-            return text_to_path.get_text_path(prop, clean_line, ismath=ismath)

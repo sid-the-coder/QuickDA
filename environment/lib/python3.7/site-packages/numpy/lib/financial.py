@@ -10,8 +10,6 @@ or arrays (or other sequences).
 Functions support the :class:`decimal.Decimal` type unless
 otherwise stated.
 """
-from __future__ import division, absolute_import, print_function
-
 import warnings
 from decimal import Decimal
 import functools
@@ -468,7 +466,7 @@ def _rbl(rate, per, pmt, pv, when):
     This function is here to simply have a different name for the 'fv'
     function to not interfere with the 'fv' keyword argument within the 'ipmt'
     function.  It is the 'remaining balance on loan' which might be useful as
-    it's own function, but is easily calculated with the 'fv' function.
+    its own function, but is easily calculated with the 'fv' function.
     """
     return fv(rate, (per - 1), pmt, pv, when)
 

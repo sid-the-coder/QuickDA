@@ -25,6 +25,7 @@ from jedi.inference.utils import unite
 from jedi.cache import memoize_method
 from jedi.inference import imports
 from jedi.inference.imports import ImportName
+from jedi.inference.compiled.mixed import MixedName
 from jedi.inference.gradual.typeshed import StubModuleValue
 from jedi.inference.gradual.conversion import convert_names, convert_values
 from jedi.inference.base_value import ValueSet
@@ -94,7 +95,11 @@ class BaseName(object):
 
     @property
     def module_path(self):
-        """Shows the file path of a module. e.g. ``/usr/lib/python2.7/os.py``"""
+        """
+        Shows the file path of a module. e.g. ``/usr/lib/python2.7/os.py``
+
+        :rtype: str or None
+        """
         module = self._get_module_context()
         if module.is_stub() or not module.is_compiled():
             # Compiled modules should not return a module path even if they
@@ -168,7 +173,7 @@ class BaseName(object):
         >>> defs[3]
         'function'
 
-        Valid values for are ``module``, ``class``, ``instance``, ``function``,
+        Valid values for type are ``module``, ``class``, ``instance``, ``function``,
         ``param``, ``path``, ``keyword`` and ``statement``.
 
         """
@@ -226,6 +231,39 @@ class BaseName(object):
             return None
         return start_pos[1]
 
+    def get_definition_start_position(self):
+        """
+        The (row, column) of the start of the definition range. Rows start with
+        1, columns start with 0.
+
+        :rtype: Optional[Tuple[int, int]]
+        """
+        if self._name.tree_name is None:
+            return None
+        definition = self._name.tree_name.get_definition()
+        if definition is None:
+            return self._name.start_pos
+        return definition.start_pos
+
+    def get_definition_end_position(self):
+        """
+        The (row, column) of the end of the definition range. Rows start with
+        1, columns start with 0.
+
+        :rtype: Optional[Tuple[int, int]]
+        """
+        if self._name.tree_name is None:
+            return None
+        definition = self._name.tree_name.get_definition()
+        if definition is None:
+            return self._name.tree_name.end_pos
+        if self.type in ("function", "class"):
+            last_leaf = definition.get_last_leaf()
+            if last_leaf.type == "newline":
+                return last_leaf.get_previous_leaf().end_pos
+            return last_leaf.end_pos
+        return definition.end_pos
+
     def docstring(self, raw=False, fast=True):
         r"""
         Return a document string for this completion object.
@@ -245,8 +283,8 @@ class BaseName(object):
         Document for function f.
 
         Notice that useful extra information is added to the actual
-        docstring.  For function, it is signature.  If you need
-        actual docstring, use ``raw=True`` instead.
+        docstring, e.g. function signatures are prepended to their docstrings.
+        If you need the actual docstring, use ``raw=True`` instead.
 
         >>> print(script.infer(1, len('def f'))[0].docstring(raw=True))
         Document for function f.
@@ -557,6 +595,12 @@ class BaseName(object):
             # statements and not stubs. This is a speed optimization.
             return []
 
+        if isinstance(self._name, MixedName):
+            # While this would eventually happen anyway, it's basically just a
+            # shortcut to not infer anything tree related, because it's really
+            # not necessary.
+            return self._name.infer_compiled_value().get_signatures()
+
         names = convert_names([self._name], prefer_stubs=True)
         return [sig for name in names for sig in name.infer().get_signatures()]
 
@@ -665,7 +709,7 @@ class Completion(BaseName):
 
     def docstring(self, raw=False, fast=True):
         """
-        Documentated under :meth:`BaseName.docstring`.
+        Documented under :meth:`BaseName.docstring`.
         """
         if self._like_name_length >= 3:
             # In this case we can just resolve the like name, because we
@@ -693,9 +737,8 @@ class Completion(BaseName):
         return super(Completion, self)._get_docstring_signature()
 
     def _get_cache(self):
-        typ = super(Completion, self).type
         return (
-            typ,
+            super(Completion, self).type,
             super(Completion, self)._get_docstring_signature(),
             super(Completion, self)._get_docstring(),
         )
@@ -703,7 +746,7 @@ class Completion(BaseName):
     @property
     def type(self):
         """
-        Documentated under :meth:`BaseName.type`.
+        Documented under :meth:`BaseName.type`.
         """
         # Purely a speed optimization.
         if self._cached_name is not None:
@@ -734,8 +777,7 @@ class Name(BaseName):
             DeprecationWarning,
             stacklevel=2
         )
-        position = '' if self.in_builtin_module else '@%s' % self.line
-        return "%s:%s%s" % (self.module_name, self.description, position)
+        return "%s:%s" % (self.module_name, self.description)
 
     @memoize_method
     def defined_names(self):
@@ -798,7 +840,7 @@ class BaseSignature(Name):
         Returns a text representation of the signature. This could for example
         look like ``foo(bar, baz: int, **kwargs)``.
 
-        :return str
+        :rtype: str
         """
         return self._signature.to_string()
 
@@ -865,7 +907,7 @@ class ParamName(Name):
         Returns a simple representation of a param, like
         ``f: Callable[..., Any]``.
 
-        :rtype: :class:`str`
+        :rtype: str
         """
         return self._name.to_string()
 

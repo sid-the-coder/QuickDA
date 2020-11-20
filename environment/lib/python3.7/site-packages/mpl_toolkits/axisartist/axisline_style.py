@@ -21,7 +21,6 @@ class _FancyAxislineStyle:
             FancyArrowPatch.__init__(self,
                                      path=self._line_path,
                                      arrowstyle=self._ARROW_STYLE,
-                                     arrow_transmuter=None,
                                      patchA=None,
                                      patchB=None,
                                      shrinkA=0.,
@@ -89,7 +88,7 @@ class AxislineStyle(_Style):
 
        __call__(self, axis_artist, path, transform)
 
-    When called, this should return an `Artist` with the following methods::
+    When called, this should return an `.Artist` with the following methods::
 
       def set_path(self, path):
           # set the path for axisline.

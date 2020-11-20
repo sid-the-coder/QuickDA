@@ -131,7 +131,8 @@ class FileContentsManager(FileManagerMixin, ContentsManager):
                 self.post_save_hook(os_path=os_path, model=model, contents_manager=self)
             except Exception as e:
                 self.log.error("Post-save hook failed o-n %s", os_path, exc_info=True)
-                raise web.HTTPError(500, u'Unexpected error while running post hook save: %s' % e)
+                raise web.HTTPError(500, u'Unexpected error while running post hook save: %s'
+                                    % e) from e
 
     @validate('root_dir')
     def _validate_root_dir(self, proposal):
@@ -330,12 +331,20 @@ class FileContentsManager(FileManagerMixin, ContentsManager):
                     self.log.debug("%s not a regular file", os_path)
                     continue
 
-                if self.should_list(name):
-                    if self.allow_hidden or not is_file_hidden(os_path, stat_res=st):
-                        contents.append(
-                                self.get(path='%s/%s' % (path, name), content=False)
+                try:
+                    if self.should_list(name):
+                        if self.allow_hidden or not is_file_hidden(os_path, stat_res=st):
+                            contents.append(
+                                    self.get(path='%s/%s' % (path, name), content=False)
+                            )
+                except OSError as e:
+                    # ELOOP: recursive symlink
+                    if e.errno != errno.ELOOP:
+                        self.log.warning(
+                            "Unknown error checking if file %r is hidden",
+                            os_path,
+                            exc_info=True,
                         )
-
             model['format'] = 'json'
 
         return model
@@ -479,7 +488,8 @@ class FileContentsManager(FileManagerMixin, ContentsManager):
             raise
         except Exception as e:
             self.log.error(u'Error while saving file: %s %s', path, e, exc_info=True)
-            raise web.HTTPError(500, u'Unexpected error while saving file: %s %s' % (path, e))
+            raise web.HTTPError(500, u'Unexpected error while saving file: %s %s' %
+                                (path, e)) from e
 
         validation_message = None
         if model['type'] == 'notebook':
@@ -558,6 +568,10 @@ class FileContentsManager(FileManagerMixin, ContentsManager):
         if new_path == old_path:
             return
 
+        # Perform path validation prior to converting to os-specific value since this
+        # is still relative to root_dir.
+        self._validate_path(new_path)
+
         new_os_path = self._get_os_path(new_path)
         old_os_path = self._get_os_path(old_path)
 
@@ -572,7 +586,8 @@ class FileContentsManager(FileManagerMixin, ContentsManager):
         except web.HTTPError:
             raise
         except Exception as e:
-            raise web.HTTPError(500, u'Unknown error renaming file: %s %s' % (old_path, e))
+            raise web.HTTPError(500, u'Unknown error renaming file: %s %s' %
+                                (old_path, e)) from e
 
     def info_string(self):
         return _("Serving notebooks from local directory: %s") % self.root_dir
@@ -586,3 +601,23 @@ class FileContentsManager(FileManagerMixin, ContentsManager):
         else:
             parent_dir = ''
         return parent_dir
+
+    @staticmethod
+    def _validate_path(path):
+        """Checks if the path contains invalid characters relative to the current platform"""
+
+        if sys.platform == 'win32':
+            # On Windows systems, we MUST disallow colons otherwise an Alternative Data Stream will
+            # be created and confusion will reign! (See https://github.com/jupyter/notebook/issues/5190)
+            # Go ahead and add other invalid (and non-path-separator) characters here as well so there's
+            # consistent behavior - although all others will result in '[Errno 22]Invalid Argument' errors.
+            invalid_chars = '?:><*"|'
+        else:
+            # On non-windows systems, allow the underlying file creation to perform enforcement when appropriate
+            invalid_chars = ''
+
+        for char in invalid_chars:
+            if char in path:
+                raise web.HTTPError(400, "Path '{}' contains characters that are invalid for the filesystem. "
+                                         "Path names on this filesystem cannot contain any of the following "
+                                         "characters: {}".format(path, invalid_chars))

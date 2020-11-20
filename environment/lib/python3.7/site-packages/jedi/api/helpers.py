@@ -15,7 +15,7 @@ from jedi.inference.base_value import NO_VALUES
 from jedi.inference.syntax_tree import infer_atom
 from jedi.inference.helpers import infer_call_of_leaf
 from jedi.inference.compiled import get_string_value_set
-from jedi.cache import signature_time_cache
+from jedi.cache import signature_time_cache, memoize_method
 from jedi.parser_utils import get_parent_scope
 
 
@@ -216,11 +216,15 @@ class CallDetails(object):
     def keyword_name_str(self):
         return _get_index_and_key(self._children, self._position)[1]
 
+    @memoize_method
+    def _list_arguments(self):
+        return list(_iter_arguments(self._children, self._position))
+
     def calculate_index(self, param_names):
         positional_count = 0
         used_names = set()
         star_count = -1
-        args = list(_iter_arguments(self._children, self._position))
+        args = self._list_arguments()
         if not args:
             if param_names:
                 return 0
@@ -266,6 +270,19 @@ class CallDetails(object):
                 if kind == Parameter.VAR_KEYWORD:
                     return i
         return None
+
+    def iter_used_keyword_arguments(self):
+        for star_count, key_start, had_equal in list(self._list_arguments()):
+            if had_equal and key_start:
+                yield key_start
+
+    def count_positional_arguments(self):
+        count = 0
+        for star_count, key_start, had_equal in self._list_arguments()[:-1]:
+            if star_count:
+                break
+            count += 1
+        return count
 
 
 def _iter_arguments(nodes, position):
@@ -385,7 +402,7 @@ def get_signature_details(module, position):
     # parents for possible function definitions.
     node = leaf.parent
     while node is not None:
-        if node.type in ('funcdef', 'classdef'):
+        if node.type in ('funcdef', 'classdef', 'decorated', 'async_stmt'):
             # Don't show signatures if there's stuff before it that just
             # makes it feel strange to have a signature.
             return None
@@ -405,7 +422,8 @@ def get_signature_details(module, position):
                 additional_children.insert(0, n)
 
         # Find a valid trailer
-        if node.type == 'trailer' and node.children[0] == '(':
+        if node.type == 'trailer' and node.children[0] == '(' \
+                or node.type == 'decorator' and node.children[2] == '(':
             # Additionally we have to check that an ending parenthesis isn't
             # interpreted wrong. There are two cases:
             # 1. Cursor before paren -> The current signature is good
@@ -414,7 +432,11 @@ def get_signature_details(module, position):
                 leaf = node.get_previous_leaf()
                 if leaf is None:
                     return None
-                return CallDetails(node.children[0], node.children, position)
+                return CallDetails(
+                    node.children[0] if node.type == 'trailer' else node.children[2],
+                    node.children,
+                    position
+                )
 
         node = node.parent
 
@@ -453,8 +475,8 @@ def validate_line_column(func):
         line_string = self._code_lines[line - 1]
         line_len = len(line_string)
         if line_string.endswith('\r\n'):
-            line_len -= 1
-        if line_string.endswith('\n'):
+            line_len -= 2
+        elif line_string.endswith('\n'):
             line_len -= 1
 
         column = line_len if column is None else column

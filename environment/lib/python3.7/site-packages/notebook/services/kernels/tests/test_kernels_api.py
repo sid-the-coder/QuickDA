@@ -1,18 +1,27 @@
 """Test the kernels service API."""
 
 import json
+import sys
 import time
 
+from requests import HTTPError
 from traitlets.config import Config
 
 from tornado.httpclient import HTTPRequest
 from tornado.ioloop import IOLoop
 from tornado.websocket import websocket_connect
+from unittest import SkipTest
 
 from jupyter_client.kernelspec import NATIVE_KERNEL_NAME
 
 from notebook.utils import url_path_join
 from notebook.tests.launchnotebook import NotebookTestBase, assert_http_error
+
+try:
+    from jupyter_client import AsyncMultiKernelManager
+    async_testing_enabled = True
+except ImportError:
+    async_testing_enabled = False
 
 
 class KernelAPI(object):
@@ -188,6 +197,29 @@ class KernelAPITest(NotebookTestBase):
         self.assertEqual(model['connections'], 0)
 
 
+class AsyncKernelAPITest(KernelAPITest):
+    """Test the kernels web service API using the AsyncMappingKernelManager"""
+
+    @classmethod
+    def setup_class(cls):
+        if not async_testing_enabled:  # Can be removed once jupyter_client >= 6.1 is required.
+            raise SkipTest("AsyncKernelAPITest tests skipped due to down-level jupyter_client!")
+        if sys.version_info < (3, 6):  # Can be removed once 3.5 is dropped.
+            raise SkipTest("AsyncKernelAPITest tests skipped due to Python < 3.6!")
+        super(AsyncKernelAPITest, cls).setup_class()
+
+    @classmethod
+    def get_argv(cls):
+        argv = super(AsyncKernelAPITest, cls).get_argv()
+
+        # before we extend the argv with the class, ensure that appropriate jupyter_client is available.
+        # if not available, don't set kernel_manager_class, resulting in the repeat of sync-based tests.
+        if async_testing_enabled:
+            argv.extend(['--NotebookApp.kernel_manager_class='
+                        'notebook.services.kernels.kernelmanager.AsyncMappingKernelManager'])
+        return argv
+
+
 class KernelFilterTest(NotebookTestBase):
 
     # A special install of NotebookTestBase where only `kernel_info_request`
@@ -199,6 +231,53 @@ class KernelFilterTest(NotebookTestBase):
             }
         }
     })
+
     # Sanity check verifying that the configurable was properly set.
     def test_config(self):
         self.assertEqual(self.notebook.kernel_manager.allowed_message_types, ['kernel_info_request'])
+
+
+class KernelCullingTest(NotebookTestBase):
+    """Test kernel culling """
+
+    @classmethod
+    def get_argv(cls):
+        argv = super(KernelCullingTest, cls).get_argv()
+
+        # Enable culling with 2s timeout and 1s intervals
+        argv.extend(['--MappingKernelManager.cull_idle_timeout=2',
+                     '--MappingKernelManager.cull_interval=1',
+                     '--MappingKernelManager.cull_connected=False'])
+        return argv
+
+    def setUp(self):
+        self.kern_api = KernelAPI(self.request,
+                                  base_url=self.base_url(),
+                                  headers=self.auth_headers(),
+                                  )
+
+    def tearDown(self):
+        for k in self.kern_api.list().json():
+            self.kern_api.shutdown(k['id'])
+
+    def test_culling(self):
+        kid = self.kern_api.start().json()['id']
+        ws = self.kern_api.websocket(kid)
+        model = self.kern_api.get(kid).json()
+        self.assertEqual(model['connections'], 1)
+        assert not self.get_cull_status(kid)  # connected, should not be culled
+        ws.close()
+        assert self.get_cull_status(kid)  # not connected, should be culled
+
+    def get_cull_status(self, kid):
+        culled = False
+        for i in range(15):  # Need max of 3s to ensure culling timeout exceeded
+            try:
+                self.kern_api.get(kid)
+            except HTTPError as e:
+                assert e.response.status_code == 404
+                culled = True
+                break
+            else:
+                time.sleep(0.2)
+        return culled

@@ -27,6 +27,7 @@ class Image(_BaseTraceType):
         "metasrc",
         "name",
         "opacity",
+        "source",
         "stream",
         "text",
         "textsrc",
@@ -50,11 +51,13 @@ class Image(_BaseTraceType):
     def colormodel(self):
         """
         Color model used to map the numerical color components
-        described in `z` into colors.
+        described in `z` into colors. If `source` is specified, this
+        attribute will be set to `rgba256` otherwise it defaults to
+        `rgb`.
     
         The 'colormodel' property is an enumeration that may be specified as:
           - One of the following enumeration values:
-                ['rgb', 'rgba', 'hsl', 'hsla']
+                ['rgb', 'rgba', 'rgba256', 'hsl', 'hsla']
 
         Returns
         -------
@@ -270,15 +273,15 @@ class Image(_BaseTraceType):
         reference/blob/master/Formatting.md#d3_format for details on
         the formatting syntax. Dates are formatted using d3-time-
         format's syntax %{variable|d3-time-format}, for example "Day:
-        %{2019-01-01|%A}". https://github.com/d3/d3-3.x-api-
-        reference/blob/master/Time-Formatting.md#format for details on
-        the date formatting syntax. The variables available in
-        `hovertemplate` are the ones emitted as event data described at
-        this link https://plotly.com/javascript/plotlyjs-events/#event-
-        data. Additionally, every attributes that can be specified per-
-        point (the ones that are `arrayOk: true`) are available.
-        variables `z`, `color` and `colormodel`. Anything contained in
-        tag `<extra>` is displayed in the secondary box, for example
+        %{2019-01-01|%A}". https://github.com/d3/d3-time-
+        format#locale_format for details on the date formatting syntax.
+        The variables available in `hovertemplate` are the ones emitted
+        as event data described at this link
+        https://plotly.com/javascript/plotlyjs-events/#event-data.
+        Additionally, every attributes that can be specified per-point
+        (the ones that are `arrayOk: true`) are available. variables
+        `z`, `color` and `colormodel`. Anything contained in tag
+        `<extra>` is displayed in the secondary box, for example
         "<extra>{fullData.name}</extra>". To hide the secondary box
         completely, use an empty tag `<extra></extra>`.
     
@@ -490,6 +493,28 @@ class Image(_BaseTraceType):
     @opacity.setter
     def opacity(self, val):
         self["opacity"] = val
+
+    # source
+    # ------
+    @property
+    def source(self):
+        """
+        Specifies the data URI of the image to be visualized. The URI
+        consists of "data:image/[<media subtype>][;base64],<data>"
+    
+        The 'source' property is a string and must be specified as:
+          - A string
+          - A number that will be converted to a string
+
+        Returns
+        -------
+        str
+        """
+        return self["source"]
+
+    @source.setter
+    def source(self, val):
+        self["source"] = val
 
     # stream
     # ------
@@ -759,9 +784,10 @@ class Image(_BaseTraceType):
         Array defining the higher bound for each color component. Note
         that the default value will depend on the colormodel. For the
         `rgb` colormodel, it is [255, 255, 255]. For the `rgba`
-        colormodel, it is [255, 255, 255, 1]. For the `hsl` colormodel,
-        it is [360, 100, 100]. For the `hsla` colormodel, it is [360,
-        100, 100, 1].
+        colormodel, it is [255, 255, 255, 1]. For the `rgba256`
+        colormodel, it is [255, 255, 255, 255]. For the `hsl`
+        colormodel, it is [360, 100, 100]. For the `hsla` colormodel,
+        it is [360, 100, 100, 1].
     
         The 'zmax' property is an info array that may be specified as:
     
@@ -793,8 +819,9 @@ class Image(_BaseTraceType):
         Array defining the lower bound for each color component. Note
         that the default value will depend on the colormodel. For the
         `rgb` colormodel, it is [0, 0, 0]. For the `rgba` colormodel,
-        it is [0, 0, 0, 0]. For the `hsl` colormodel, it is [0, 0, 0].
-        For the `hsla` colormodel, it is [0, 0, 0, 0].
+        it is [0, 0, 0, 0]. For the `rgba256` colormodel, it is [0, 0,
+        0, 0]. For the `hsl` colormodel, it is [0, 0, 0]. For the
+        `hsla` colormodel, it is [0, 0, 0, 0].
     
         The 'zmin' property is an info array that may be specified as:
     
@@ -851,7 +878,9 @@ class Image(_BaseTraceType):
         return """\
         colormodel
             Color model used to map the numerical color components
-            described in `z` into colors.
+            described in `z` into colors. If `source` is specified,
+            this attribute will be set to `rgba256` otherwise it
+            defaults to `rgb`.
         customdata
             Assigns extra data each datum. This may be useful when
             listening to hover, click and selection events. Note
@@ -886,8 +915,7 @@ class Image(_BaseTraceType):
             details on the formatting syntax. Dates are formatted
             using d3-time-format's syntax %{variable|d3-time-
             format}, for example "Day: %{2019-01-01|%A}".
-            https://github.com/d3/d3-3.x-api-
-            reference/blob/master/Time-Formatting.md#format for
+            https://github.com/d3/d3-time-format#locale_format for
             details on the date formatting syntax. The variables
             available in `hovertemplate` are the ones emitted as
             event data described at this link
@@ -935,6 +963,10 @@ class Image(_BaseTraceType):
             legend item and on hover.
         opacity
             Sets the opacity of the trace.
+        source
+            Specifies the data URI of the image to be visualized.
+            The URI consists of "data:image/[<media
+            subtype>][;base64],<data>"
         stream
             :class:`plotly.graph_objects.image.Stream` instance or
             dict with compatible properties
@@ -992,7 +1024,8 @@ class Image(_BaseTraceType):
             component. Note that the default value will depend on
             the colormodel. For the `rgb` colormodel, it is [255,
             255, 255]. For the `rgba` colormodel, it is [255, 255,
-            255, 1]. For the `hsl` colormodel, it is [360, 100,
+            255, 1]. For the `rgba256` colormodel, it is [255, 255,
+            255, 255]. For the `hsl` colormodel, it is [360, 100,
             100]. For the `hsla` colormodel, it is [360, 100, 100,
             1].
         zmin
@@ -1000,7 +1033,8 @@ class Image(_BaseTraceType):
             component. Note that the default value will depend on
             the colormodel. For the `rgb` colormodel, it is [0, 0,
             0]. For the `rgba` colormodel, it is [0, 0, 0, 0]. For
-            the `hsl` colormodel, it is [0, 0, 0]. For the `hsla`
+            the `rgba256` colormodel, it is [0, 0, 0, 0]. For the
+            `hsl` colormodel, it is [0, 0, 0]. For the `hsla`
             colormodel, it is [0, 0, 0, 0].
         zsrc
             Sets the source reference on Chart Studio Cloud for  z
@@ -1028,6 +1062,7 @@ class Image(_BaseTraceType):
         metasrc=None,
         name=None,
         opacity=None,
+        source=None,
         stream=None,
         text=None,
         textsrc=None,
@@ -1061,7 +1096,9 @@ class Image(_BaseTraceType):
             an instance of :class:`plotly.graph_objs.Image`
         colormodel
             Color model used to map the numerical color components
-            described in `z` into colors.
+            described in `z` into colors. If `source` is specified,
+            this attribute will be set to `rgba256` otherwise it
+            defaults to `rgb`.
         customdata
             Assigns extra data each datum. This may be useful when
             listening to hover, click and selection events. Note
@@ -1096,8 +1133,7 @@ class Image(_BaseTraceType):
             details on the formatting syntax. Dates are formatted
             using d3-time-format's syntax %{variable|d3-time-
             format}, for example "Day: %{2019-01-01|%A}".
-            https://github.com/d3/d3-3.x-api-
-            reference/blob/master/Time-Formatting.md#format for
+            https://github.com/d3/d3-time-format#locale_format for
             details on the date formatting syntax. The variables
             available in `hovertemplate` are the ones emitted as
             event data described at this link
@@ -1145,6 +1181,10 @@ class Image(_BaseTraceType):
             legend item and on hover.
         opacity
             Sets the opacity of the trace.
+        source
+            Specifies the data URI of the image to be visualized.
+            The URI consists of "data:image/[<media
+            subtype>][;base64],<data>"
         stream
             :class:`plotly.graph_objects.image.Stream` instance or
             dict with compatible properties
@@ -1202,7 +1242,8 @@ class Image(_BaseTraceType):
             component. Note that the default value will depend on
             the colormodel. For the `rgb` colormodel, it is [255,
             255, 255]. For the `rgba` colormodel, it is [255, 255,
-            255, 1]. For the `hsl` colormodel, it is [360, 100,
+            255, 1]. For the `rgba256` colormodel, it is [255, 255,
+            255, 255]. For the `hsl` colormodel, it is [360, 100,
             100]. For the `hsla` colormodel, it is [360, 100, 100,
             1].
         zmin
@@ -1210,7 +1251,8 @@ class Image(_BaseTraceType):
             component. Note that the default value will depend on
             the colormodel. For the `rgb` colormodel, it is [0, 0,
             0]. For the `rgba` colormodel, it is [0, 0, 0, 0]. For
-            the `hsl` colormodel, it is [0, 0, 0]. For the `hsla`
+            the `rgba256` colormodel, it is [0, 0, 0, 0]. For the
+            `hsl` colormodel, it is [0, 0, 0]. For the `hsla`
             colormodel, it is [0, 0, 0, 0].
         zsrc
             Sets the source reference on Chart Studio Cloud for  z
@@ -1321,6 +1363,10 @@ an instance of :class:`plotly.graph_objs.Image`"""
         _v = opacity if opacity is not None else _v
         if _v is not None:
             self["opacity"] = _v
+        _v = arg.pop("source", None)
+        _v = source if source is not None else _v
+        if _v is not None:
+            self["source"] = _v
         _v = arg.pop("stream", None)
         _v = stream if stream is not None else _v
         if _v is not None:

@@ -1,8 +1,4 @@
-import plotly
-import plotly.graph_objs as go
-from plotly.offline import init_notebook_mode, iplot
-
-init_notebook_mode()
+from quickda.config import *
 
 def eda_timeseries(data, x, y):
     

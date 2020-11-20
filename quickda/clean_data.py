@@ -1,9 +1,6 @@
-import pandas as pd
-import numpy as np
+from quickda.config import *
 
 def standardize_column_names(data):
-    
-    print("Standardizing Column Names...")
     
     # Replace space and '_' in column names and convert them to lowercase 
     data.columns = [i.replace(' ', '_').lower() for i in data.columns]
@@ -12,8 +9,6 @@ def standardize_column_names(data):
 
 def drop_features(data, columns_to_drop):
     
-    print("Dropping Columns...")
-    
     # Drop all the list of columns specified by the user
     data = data.drop(columns_to_drop, axis=1, errors='ignore')
     
@@ -21,16 +16,12 @@ def drop_features(data, columns_to_drop):
 
 def drop_duplicate_rows(data):
     
-    print("Removing Duplicates...")
-    
     # Drop all the duplicate rows
     data = data.drop_duplicates()
     
     return data
 
 def replace_value(data, columns, value_to_replace, new_value):
-    
-    print("Replacing values...")
     
     # If columns not specified by the user, replace value in all columns 
     if columns==[]:
@@ -43,8 +34,6 @@ def replace_value(data, columns, value_to_replace, new_value):
 
 def fill_na_rows(data):
     
-    print("Filling Missing Values...")
-    
     # Retrieve the list of columns having nulls and interpolate for each column
     na_columns = data.columns[data.isna().any()].tolist()
     for column in na_columns:
@@ -54,16 +43,12 @@ def fill_na_rows(data):
 
 def drop_na_rows(data):
     
-    print("Dropping Missing Values...")
-    
     # Drop all nulls
     data = data.dropna() 
     
     return data
 
 def reduce_feature_cardinality(data, category_column, new_value, threshold):
-    
-    print("Reducing Column Cardinality...")
     
     # If user doesn't input new value to replace with
     if pd.isnull(new_value):
@@ -94,8 +79,6 @@ def reduce_feature_cardinality(data, category_column, new_value, threshold):
 
 def convert_features_dtype_to_datetime(data, datetime_columns):
     
-    print("Converting dtypes to datetime...")
-    
     # Convert columns to datetime
     data_out = data.copy()
     data_out.loc[:, datetime_columns] = data[datetime_columns].apply(pd.to_datetime, infer_datetime_format=True, errors='ignore')
@@ -103,8 +86,6 @@ def convert_features_dtype_to_datetime(data, datetime_columns):
     return data_out
 
 def convert_features_dtype_to_category(data, category_columns):
-    
-    print("Converting dtypes to category...")
     
     # Convert columns to category type
     data_out = data.copy()
@@ -114,8 +95,6 @@ def convert_features_dtype_to_category(data, category_columns):
 
 def convert_features_dtype_to_numeric(data, numeric_columns):
     
-    print("Converting dtypes to numeric...")
-    
     # Convert columns to numeric
     data_out = data.copy()
     data_out.loc[:, numeric_columns] = data[numeric_columns].apply(pd.to_numeric, errors='ignore')
@@ -123,8 +102,6 @@ def convert_features_dtype_to_numeric(data, numeric_columns):
     return data_out
 
 def remove_outliers_in_numerical_feature(data, num_columns):
-    
-    print("Removing outliers...")
     
     # If user doesn't provide the column name(s), then infer the type
     if num_columns==[]:

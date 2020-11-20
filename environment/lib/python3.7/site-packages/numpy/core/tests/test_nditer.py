@@ -1,5 +1,3 @@
-from __future__ import division, absolute_import, print_function
-
 import sys
 import pytest
 
@@ -2188,7 +2186,7 @@ def test_iter_no_broadcast():
                   [['readonly'], ['readonly'], ['readonly', 'no_broadcast']])
 
 
-class TestIterNested(object):
+class TestIterNested:
 
     def test_basic(self):
         # Test nested iteration basic usage
@@ -2690,7 +2688,15 @@ def test_0d_iter():
     i = nditer(np.arange(5), ['multi_index'], [['readonly']], op_axes=[()])
     assert_equal(i.ndim, 0)
     assert_equal(len(i), 1)
-    # note that itershape=(), still behaves like None due to the conversions
+
+    i = nditer(np.arange(5), ['multi_index'], [['readonly']],
+               op_axes=[()], itershape=())
+    assert_equal(i.ndim, 0)
+    assert_equal(len(i), 1)
+
+    # passing an itershape alone is not enough, the op_axes are also needed
+    with assert_raises(ValueError):
+        nditer(np.arange(5), ['multi_index'], [['readonly']], itershape=())
 
     # Test a more complex buffered casting case (same as another test above)
     sdt = [('a', 'f4'), ('b', 'i8'), ('c', 'c8', (2, 3)), ('d', 'O')]

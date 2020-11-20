@@ -1,6 +1,5 @@
-from __future__ import division, absolute_import, print_function
-
 import sys
+import gc
 import gzip
 import os
 import threading
@@ -9,15 +8,18 @@ import warnings
 import io
 import re
 import pytest
+from pathlib import Path
 from tempfile import NamedTemporaryFile
 from io import BytesIO, StringIO
 from datetime import datetime
 import locale
+from multiprocessing import Process, Value
+from ctypes import c_bool
 
 import numpy as np
 import numpy.ma as ma
 from numpy.lib._iotools import ConverterError, ConversionWarning
-from numpy.compat import asbytes, bytes, Path
+from numpy.compat import asbytes, bytes
 from numpy.ma.testutils import assert_equal
 from numpy.testing import (
     assert_warns, assert_, assert_raises_regex, assert_raises,
@@ -46,7 +48,6 @@ class TextIO(BytesIO):
         BytesIO.writelines(self, [asbytes(s) for s in lines])
 
 
-MAJVER, MINVER = sys.version_info[:2]
 IS_64BIT = sys.maxsize > 2**32
 try:
     import bz2
@@ -71,7 +72,7 @@ def strptime(s, fmt=None):
     return datetime(*time.strptime(s, fmt)[:3])
 
 
-class RoundtripTest(object):
+class RoundtripTest:
     def roundtrip(self, save_func, *args, **kwargs):
         """
         save_func : callable
@@ -278,8 +279,7 @@ class TestSavezLoad(RoundtripTest):
                 fp.seek(0)
                 assert_(not fp.closed)
 
-    #FIXME: Is this still true?
-    @pytest.mark.skipif(IS_PYPY, reason="Missing context manager on PyPy")
+    @pytest.mark.slow_pypy
     def test_closing_fid(self):
         # Test that issue #1517 (too many opened files) remains closed
         # It might be a "weak" test since failed to get triggered on
@@ -292,17 +292,18 @@ class TestSavezLoad(RoundtripTest):
             # numpy npz file returned by np.load when their reference count
             # goes to zero.  Python 3 running in debug mode raises a
             # ResourceWarning when file closing is left to the garbage
-            # collector, so we catch the warnings.  Because ResourceWarning
-            # is unknown in Python < 3.x, we take the easy way out and
-            # catch all warnings.
+            # collector, so we catch the warnings.
             with suppress_warnings() as sup:
-                sup.filter(Warning)  # TODO: specify exact message
+                sup.filter(ResourceWarning)  # TODO: specify exact message
                 for i in range(1, 1025):
                     try:
                         np.load(tmp)["data"]
                     except Exception as e:
                         msg = "Failed to load data from a file: %s" % e
                         raise AssertionError(msg)
+                    finally:
+                        if IS_PYPY:
+                            gc.collect()
 
     def test_closing_zipfile_after_load(self):
         # Check that zipfile owns file and can close it.  This needs to
@@ -318,7 +319,7 @@ class TestSavezLoad(RoundtripTest):
             assert_(fp.closed)
 
 
-class TestSaveTxt(object):
+class TestSaveTxt:
     def test_array(self):
         a = np.array([[1, 2], [3, 4]], float)
         fmt = "%.18e"
@@ -365,7 +366,6 @@ class TestSaveTxt(object):
         c.seek(0)
         assert_equal(c.readlines(), [b'1 3\n', b'4 6\n'])
 
-    @pytest.mark.skipif(Path is None, reason="No pathlib.Path")
     def test_multifield_view(self):
         a = np.ones(1, dtype=[('x', 'i4'), ('y', 'i4'), ('z', 'f4')])
         v = a[['x', 'z']]
@@ -530,12 +530,10 @@ class TestSaveTxt(object):
         a = np.array([utf8], dtype=np.unicode_)
         # our gz wrapper support encoding
         suffixes = ['', '.gz']
-        # stdlib 2 versions do not support encoding
-        if MAJVER > 2:
-            if HAS_BZ2:
-                suffixes.append('.bz2')
-            if HAS_LZMA:
-                suffixes.extend(['.xz', '.lzma'])
+        if HAS_BZ2:
+            suffixes.append('.bz2')
+        if HAS_LZMA:
+            suffixes.extend(['.xz', '.lzma'])
         with tempdir() as tmpdir:
             for suffix in suffixes:
                 np.savetxt(os.path.join(tmpdir, 'test.csv' + suffix), a,
@@ -573,18 +571,36 @@ class TestSaveTxt(object):
         else:
             assert_equal(s.read(), b"%f\n" % 1.)
 
-    @pytest.mark.skipif(sys.platform=='win32',
-                        reason="large files cause problems")
+    @pytest.mark.skipif(sys.platform=='win32', reason="files>4GB may not work")
     @pytest.mark.slow
     @requires_memory(free_bytes=7e9)
     def test_large_zip(self):
-        # The test takes at least 6GB of memory, writes a file larger than 4GB
-        test_data = np.asarray([np.random.rand(np.random.randint(50,100),4)
-                               for i in range(800000)])
-        with tempdir() as tmpdir:
-            np.savez(os.path.join(tmpdir, 'test.npz'), test_data=test_data)
+        def check_large_zip(memoryerror_raised):
+            memoryerror_raised.value = False
+            try:
+                # The test takes at least 6GB of memory, writes a file larger
+                # than 4GB
+                test_data = np.asarray([np.random.rand(
+                                        np.random.randint(50,100),4)
+                                        for i in range(800000)], dtype=object)
+                with tempdir() as tmpdir:
+                    np.savez(os.path.join(tmpdir, 'test.npz'),
+                             test_data=test_data)
+            except MemoryError:
+                memoryerror_raised.value = True
+                raise
+        # run in a subprocess to ensure memory is released on PyPy, see gh-15775
+        # Use an object in shared memory to re-raise the MemoryError exception
+        # in our process if needed, see gh-16889
+        memoryerror_raised = Value(c_bool)
+        p = Process(target=check_large_zip, args=(memoryerror_raised,))
+        p.start()
+        p.join()
+        if memoryerror_raised.value:
+            raise MemoryError("Child process raised a MemoryError exception")
+        assert p.exitcode == 0
 
-class LoadTxtBase(object):
+class LoadTxtBase:
     def check_compressed(self, fopen, suffixes):
         # Test that we can load data from a compressed file
         wanted = np.arange(6).reshape((2, 3))
@@ -601,18 +617,14 @@ class LoadTxtBase(object):
                         res = self.loadfunc(f)
                     assert_array_equal(res, wanted)
 
-    # Python2 .open does not support encoding
-    @pytest.mark.skipif(MAJVER == 2, reason="Needs Python version >= 3")
     def test_compressed_gzip(self):
         self.check_compressed(gzip.open, ('.gz',))
 
     @pytest.mark.skipif(not HAS_BZ2, reason="Needs bz2")
-    @pytest.mark.skipif(MAJVER == 2, reason="Needs Python version >= 3")
     def test_compressed_bz2(self):
         self.check_compressed(bz2.open, ('.bz2',))
 
     @pytest.mark.skipif(not HAS_LZMA, reason="Needs lzma")
-    @pytest.mark.skipif(MAJVER == 2, reason="Needs Python version >= 3")
     def test_compressed_lzma(self):
         self.check_compressed(lzma.open, ('.xz', '.lzma'))
 
@@ -826,7 +838,7 @@ class TestLoadTxt(LoadTxtBase):
             assert_array_equal(x, a[:, 1])
 
         # Testing with some crazy custom integer type
-        class CrazyInt(object):
+        class CrazyInt:
             def __index__(self):
                 return 1
 
@@ -1158,7 +1170,7 @@ class TestLoadTxt(LoadTxtBase):
         a = np.array([[1, 2, 3, 5], [4, 5, 7, 8], [2, 1, 4, 5]], int)
         assert_array_equal(x, a)
 
-class Testfromregex(object):
+class Testfromregex:
     def test_record(self):
         c = TextIO()
         c.write('1.312 foo\n1.534 bar\n4.444 qux')
@@ -1568,6 +1580,13 @@ M   33  21.99
                                  'Nested fields.* not supported.*'):
             test = np.genfromtxt(TextIO(data), delimiter=";",
                                  dtype=ndtype, converters=converters)
+
+    def test_dtype_with_object_no_converter(self):
+        # Object without a converter uses bytes:
+        parsed = np.genfromtxt(TextIO("1"), dtype=object)
+        assert parsed[()] == b"1"
+        parsed = np.genfromtxt(TextIO("string"), dtype=object)
+        assert parsed[()] == b"string"
 
     def test_userconverters_with_explicit_dtype(self):
         # Test user_converters w/ explicit (standard) dtype
@@ -2341,15 +2360,14 @@ M   33  21.99
 
         assert_(test.dtype['f0'] == float)
         assert_(test.dtype['f1'] == np.int64)
-        assert_(test.dtype['f2'] == np.integer)
+        assert_(test.dtype['f2'] == np.int_)
 
         assert_allclose(test['f0'], 73786976294838206464.)
         assert_equal(test['f1'], 17179869184)
         assert_equal(test['f2'], 1024)
 
 
-@pytest.mark.skipif(Path is None, reason="No pathlib.Path")
-class TestPathUsage(object):
+class TestPathUsage:
     # Test that pathlib.Path can be used
     def test_loadtxt(self):
         with temppath(suffix='.txt') as path:
@@ -2482,7 +2500,7 @@ def test_gzip_load():
 
 # These next two classes encode the minimal API needed to save()/load() arrays.
 # The `test_ducktyping` ensures they work correctly
-class JustWriter(object):
+class JustWriter:
     def __init__(self, base):
         self.base = base
 
@@ -2492,7 +2510,7 @@ class JustWriter(object):
     def flush(self):
         return self.base.flush()
 
-class JustReader(object):
+class JustReader:
     def __init__(self, base):
         self.base = base
 

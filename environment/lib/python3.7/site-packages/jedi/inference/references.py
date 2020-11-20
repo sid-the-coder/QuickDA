@@ -3,13 +3,14 @@ import re
 
 from parso import python_bytes_to_unicode
 
+from jedi._compatibility import FileNotFoundError
 from jedi.debug import dbg
 from jedi.file_io import KnownContentFileIO
 from jedi.inference.imports import SubModuleName, load_module_from_path
 from jedi.inference.filters import ParserTreeFilter
 from jedi.inference.gradual.conversion import convert_names
 
-_IGNORE_FOLDERS = ('.tox', 'venv', '__pycache__')
+_IGNORE_FOLDERS = ('.tox', '.venv', 'venv', '__pycache__')
 
 _OPENED_FILE_LIMIT = 2000
 """
@@ -113,7 +114,7 @@ def _find_global_variables(names, search_name):
                     yield n
 
 
-def find_references(module_context, tree_name):
+def find_references(module_context, tree_name, only_in_module=False):
     inf = module_context.inference_state
     search_name = tree_name.value
 
@@ -127,10 +128,14 @@ def find_references(module_context, tree_name):
 
     found_names_dct = _dictionarize(found_names)
 
-    module_contexts = set(d.get_root_context() for d in found_names)
-    module_contexts = [module_context] + [m for m in module_contexts if m != module_context]
+    module_contexts = [module_context]
+    if not only_in_module:
+        module_contexts.extend(
+            m for m in set(d.get_root_context() for d in found_names)
+            if m != module_context and m.tree_node is not None
+        )
     # For param no search for other modules is necessary.
-    if any(n.api_type == 'param' for n in found_names):
+    if only_in_module or any(n.api_type == 'param' for n in found_names):
         potential_modules = module_contexts
     else:
         potential_modules = get_module_contexts_containing_name(
@@ -157,7 +162,10 @@ def find_references(module_context, tree_name):
             else:
                 for name in new:
                     non_matching_reference_maps.setdefault(name, []).append(new)
-    return found_names_dct.values()
+    result = found_names_dct.values()
+    if only_in_module:
+        return [n for n in result if n.get_root_context() == module_context]
+    return result
 
 
 def _check_fs(inference_state, file_io, regex):

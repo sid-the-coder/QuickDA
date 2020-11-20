@@ -13,7 +13,7 @@ import json
 import sys
 
 from jedi._compatibility import FileNotFoundError, PermissionError, \
-    IsADirectoryError
+    IsADirectoryError, NotADirectoryError
 from jedi import debug
 from jedi.api.environment import get_cached_default_environment, create_environment
 from jedi.api.exceptions import WrongVersion
@@ -26,7 +26,7 @@ from jedi.inference.sys_path import discover_buildout_paths
 from jedi.inference.cache import inference_state_as_method_param_cache
 from jedi.inference.references import recurse_find_python_folders_and_files, search_in_file_ios
 from jedi.file_io import FolderIO
-from jedi.common.utils import traverse_parents
+from jedi.common import traverse_parents
 
 _CONFIG_FOLDER = '.jedi'
 _CONTAINS_POTENTIAL_PROJECT = \
@@ -149,6 +149,13 @@ class Project(object):
             """The sys path that is going to be added at the end of the """
 
         py2_comp(path, **kwargs)
+
+    @property
+    def path(self):
+        """
+        The base path for this project.
+        """
+        return self._path
 
     @inference_state_as_method_param_cache()
     def _get_base_sys_path(self, inference_state):
@@ -383,6 +390,8 @@ def get_default_project(path=None):
             return Project.load(dir)
         except (FileNotFoundError, IsADirectoryError, PermissionError):
             pass
+        except NotADirectoryError:
+            continue
 
         if first_no_init_file is None:
             if os.path.exists(os.path.join(dir, '__init__.py')):

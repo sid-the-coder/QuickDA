@@ -1,12 +1,10 @@
-from __future__ import division, absolute_import, print_function
-
 import math
 import textwrap
 import sys
 import pytest
 
 import numpy as np
-from numpy.testing import assert_, assert_equal
+from numpy.testing import assert_, assert_equal, IS_PYPY
 from . import util
 
 
@@ -61,12 +59,12 @@ cf2py  intent(out) a
        end
     """
 
-    @pytest.mark.slow
     @pytest.mark.parametrize('name', 't,t2'.split(','))
     def test_all(self, name):
         self.check_function(name)
 
-    @pytest.mark.slow
+    @pytest.mark.xfail(IS_PYPY,
+                       reason="PyPy cannot modify tp_doc after PyType_Ready")
     def test_docstring(self):
         expected = textwrap.dedent("""\
         a = t(fun,[fun_extra_args])
@@ -118,7 +116,7 @@ cf2py  intent(out) a
         r = t(self.module.func0._cpointer)
         assert_(r == 11, repr(r))
 
-        class A(object):
+        class A:
 
             def __call__(self):
                 return 7

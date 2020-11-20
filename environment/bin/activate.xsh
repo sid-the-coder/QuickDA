@@ -28,7 +28,7 @@ def _deactivate(args):
 _deactivate(["nondestructive"])
 aliases["deactivate"] = _deactivate
 
-$VIRTUAL_ENV = r"/Users/Sidheswar/Downloads/Github/Easy-Data-Analysis-With-Pandas/environment"
+$VIRTUAL_ENV = r"/Users/Sidheswar/Downloads/Github/QuickDA/environment"
 
 $_OLD_VIRTUAL_PATH = $PATH
 $PATH = $PATH[:]

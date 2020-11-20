@@ -156,8 +156,9 @@ class CompiledSubprocess(object):
     # Start with 2, gets set after _get_info.
     _pickle_protocol = 2
 
-    def __init__(self, executable):
+    def __init__(self, executable, env_vars=None):
         self._executable = executable
+        self._env_vars = env_vars
         self._inference_state_deletion_queue = queue.deque()
         self._cleanup_callable = lambda: None
 
@@ -188,7 +189,8 @@ class CompiledSubprocess(object):
             stderr=subprocess.PIPE,
             # Use system default buffering on Python 2 to improve performance
             # (this is already the case on Python 3).
-            bufsize=-1
+            bufsize=-1,
+            env=self._env_vars
         )
         self._stderr_queue = Queue()
         self._stderr_thread = t = Thread(

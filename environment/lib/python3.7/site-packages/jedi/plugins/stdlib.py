@@ -16,7 +16,7 @@ from jedi._compatibility import force_unicode, Parameter
 from jedi import debug
 from jedi.inference.utils import safe_property
 from jedi.inference.helpers import get_str_or_none
-from jedi.inference.arguments import \
+from jedi.inference.arguments import iterate_argument_clinic, ParamIssue, \
     repack_with_argument_clinic, AbstractArguments, TreeArgumentsWrapper
 from jedi.inference import analysis
 from jedi.inference import compiled
@@ -119,7 +119,9 @@ def execute(callback):
             else:
                 return call()
 
-            if value.is_bound_method():
+            if value.is_bound_method() or value.is_instance():
+                # value can be an instance for example if it is a partial
+                # object.
                 return call()
 
             # for now we just support builtin functions.
@@ -143,7 +145,7 @@ def _follow_param(inference_state, arguments, index):
         return lazy_value.infer()
 
 
-def argument_clinic(string, want_value=False, want_context=False,
+def argument_clinic(clinic_string, want_value=False, want_context=False,
                     want_arguments=False, want_inference_state=False,
                     want_callback=False):
     """
@@ -151,13 +153,15 @@ def argument_clinic(string, want_value=False, want_context=False,
     """
 
     def f(func):
-        @repack_with_argument_clinic(string, keep_arguments_param=True,
-                                     keep_callback_param=True)
-        def wrapper(value, *args, **kwargs):
-            arguments = kwargs.pop('arguments')
-            callback = kwargs.pop('callback')
-            assert not kwargs  # Python 2...
+        def wrapper(value, arguments, callback):
+            try:
+                args = tuple(iterate_argument_clinic(
+                    value.inference_state, arguments, clinic_string))
+            except ParamIssue:
+                return NO_VALUES
+
             debug.dbg('builtin start %s' % value, color='MAGENTA')
+            kwargs = {}
             if want_context:
                 kwargs['context'] = arguments.context
             if want_value:
@@ -258,13 +262,12 @@ class ReversedObject(AttributeOverwrite):
         super(ReversedObject, self).__init__(reversed_obj)
         self._iter_list = iter_list
 
-    @publish_method('__iter__')
-    def py__iter__(self, contextualized_node=None):
+    def py__iter__(self, contextualized_node):
         return self._iter_list
 
     @publish_method('next', python_version_match=2)
     @publish_method('__next__', python_version_match=3)
-    def py__next__(self):
+    def _next(self, arguments):
         return ValueSet.from_sets(
             lazy_value.infer() for lazy_value in self._iter_list
         )
@@ -393,13 +396,13 @@ class PropertyObject(AttributeOverwrite, ValueWrapper):
 
     def py__get__(self, instance, class_value):
         if instance is None:
-            return NO_VALUES
+            return ValueSet([self])
         return self._function.execute_with_values(instance)
 
     @publish_method('deleter')
     @publish_method('getter')
     @publish_method('setter')
-    def _return_self(self):
+    def _return_self(self, arguments):
         return ValueSet({self})
 
 
@@ -473,11 +476,10 @@ def collections_namedtuple(value, arguments, callback):
 class PartialObject(ValueWrapper):
     def __init__(self, actual_value, arguments, instance=None):
         super(PartialObject, self).__init__(actual_value)
-        self._actual_value = actual_value
         self._arguments = arguments
         self._instance = instance
 
-    def _get_function(self, unpacked_arguments):
+    def _get_functions(self, unpacked_arguments):
         key, lazy_value = next(unpacked_arguments, (None, None))
         if key is not None or lazy_value is None:
             debug.warning("Partial should have a proper function %s", self._arguments)
@@ -486,8 +488,8 @@ class PartialObject(ValueWrapper):
 
     def get_signatures(self):
         unpacked_arguments = self._arguments.unpack()
-        func = self._get_function(unpacked_arguments)
-        if func is None:
+        funcs = self._get_functions(unpacked_arguments)
+        if funcs is None:
             return []
 
         arg_count = 0
@@ -499,16 +501,29 @@ class PartialObject(ValueWrapper):
                 arg_count += 1
             else:
                 keys.add(key)
-        return [PartialSignature(s, arg_count, keys) for s in func.get_signatures()]
+        return [PartialSignature(s, arg_count, keys) for s in funcs.get_signatures()]
 
     def py__call__(self, arguments):
-        func = self._get_function(self._arguments.unpack())
-        if func is None:
+        funcs = self._get_functions(self._arguments.unpack())
+        if funcs is None:
             return NO_VALUES
 
-        return func.execute(
+        return funcs.execute(
             MergedPartialArguments(self._arguments, arguments, self._instance)
         )
+
+    def py__doc__(self):
+        """
+        In CPython partial does not replace the docstring. However we are still
+        imitating it here, because we want this docstring to be worth something
+        for the user.
+        """
+        callables = self._get_functions(self._arguments.unpack())
+        if callables is None:
+            return ''
+        for callable_ in callables:
+            return callable_.py__doc__()
+        return ''
 
     def py__get__(self, instance, class_value):
         return ValueSet([self])
@@ -516,7 +531,9 @@ class PartialObject(ValueWrapper):
 
 class PartialMethodObject(PartialObject):
     def py__get__(self, instance, class_value):
-        return ValueSet([PartialObject(self._actual_value, self._arguments, instance)])
+        if instance is None:
+            return ValueSet([self])
+        return ValueSet([PartialObject(self._wrapped_value, self._arguments, instance)])
 
 
 class PartialSignature(SignatureWrapper):
@@ -782,6 +799,9 @@ _implemented = {
         # Therefore, just make it return nothing, which leads to the stubs
         # being used instead. This only matters for 3.7+.
         '_alias': lambda value, arguments, callback: NO_VALUES,
+        # runtime_checkable doesn't really change anything and is just
+        # adding logs for infering stuff, so we can safely ignore it.
+        'runtime_checkable': lambda value, arguments, callback: NO_VALUES,
     },
     'dataclasses': {
         # For now this works at least better than Jedi trying to understand it.
@@ -797,7 +817,7 @@ _implemented = {
 
 
 def get_metaclass_filters(func):
-    def wrapper(cls, metaclasses):
+    def wrapper(cls, metaclasses, is_instance):
         for metaclass in metaclasses:
             if metaclass.py__name__() == 'EnumMeta' \
                     and metaclass.get_root_context().py__name__() == 'enum':
@@ -805,7 +825,7 @@ def get_metaclass_filters(func):
                 return [DictFilter({
                     name.string_name: EnumInstance(cls, name).name for name in filter_.values()
                 })]
-        return func(cls, metaclasses)
+        return func(cls, metaclasses, is_instance)
     return wrapper
 
 

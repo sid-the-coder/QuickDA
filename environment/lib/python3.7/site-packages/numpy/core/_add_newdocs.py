@@ -8,9 +8,6 @@ NOTE: Many of the methods of ndarray have corresponding functions.
       core/fromnumeric.py, core/defmatrix.py up-to-date.
 
 """
-from __future__ import division, absolute_import, print_function
-
-import sys
 
 from numpy.core import numerictypes as _numerictypes
 from numpy.core import dtype
@@ -155,6 +152,8 @@ add_newdoc('numpy.core', 'flatiter', ('copy',
 
 add_newdoc('numpy.core', 'nditer',
     """
+    nditer(op, flags=None, op_flags=None, op_dtypes=None, order='K', casting='safe', op_axes=None, itershape=None, buffersize=0)
+
     Efficient multi-dimensional iterator object to iterate over arrays.
     To get started using this object, see the
     :ref:`introductory guide to array iteration <arrays.nditer>`.
@@ -787,7 +786,7 @@ add_newdoc('numpy.core', 'broadcast', ('reset',
 
 add_newdoc('numpy.core.multiarray', 'array',
     """
-    array(object, dtype=None, copy=True, order='K', subok=False, ndmin=0)
+    array(object, dtype=None, *, copy=True, order='K', subok=False, ndmin=0)
 
     Create an array.
 
@@ -1036,7 +1035,7 @@ add_newdoc('numpy.core.multiarray', 'fromstring',
         A string containing the data.
     dtype : data-type, optional
         The data type of the array; default: float.  For binary input data,
-        the data must be in exactly this format. Most builtin numeric types are 
+        the data must be in exactly this format. Most builtin numeric types are
         supported and extension types may be supported.
 
         .. versionadded:: 1.18.0
@@ -1485,59 +1484,6 @@ add_newdoc('numpy.core.multiarray', 'promote_types',
     dtype('S4')
 
     """)
-
-if sys.version_info.major < 3:
-    add_newdoc('numpy.core.multiarray', 'newbuffer',
-        """
-        newbuffer(size)
-
-        Return a new uninitialized buffer object.
-
-        Parameters
-        ----------
-        size : int
-            Size in bytes of returned buffer object.
-
-        Returns
-        -------
-        newbuffer : buffer object
-            Returned, uninitialized buffer object of `size` bytes.
-
-        """)
-
-    add_newdoc('numpy.core.multiarray', 'getbuffer',
-        """
-        getbuffer(obj [,offset[, size]])
-
-        Create a buffer object from the given object referencing a slice of
-        length size starting at offset.
-
-        Default is the entire buffer. A read-write buffer is attempted followed
-        by a read-only buffer.
-
-        Parameters
-        ----------
-        obj : object
-
-        offset : int, optional
-
-        size : int, optional
-
-        Returns
-        -------
-        buffer_obj : buffer
-
-        Examples
-        --------
-        >>> buf = np.getbuffer(np.ones(5), 1, 3)
-        >>> len(buf)
-        3
-        >>> buf[0]
-        '\\x00'
-        >>> buf
-        <read-write buffer for 0x8af1e70, size 3, offset 1 at 0x8ba4ec0>
-
-        """)
 
 add_newdoc('numpy.core.multiarray', 'c_einsum',
     """
@@ -2081,25 +2027,22 @@ add_newdoc('numpy.core.multiarray', 'ndarray', ('ctypes',
     Examples
     --------
     >>> import ctypes
+    >>> x = np.array([[0, 1], [2, 3]], dtype=np.int32)
     >>> x
     array([[0, 1],
-           [2, 3]])
+           [2, 3]], dtype=int32)
     >>> x.ctypes.data
-    30439712
-    >>> x.ctypes.data_as(ctypes.POINTER(ctypes.c_long))
-    <ctypes.LP_c_long object at 0x01F01300>
-    >>> x.ctypes.data_as(ctypes.POINTER(ctypes.c_long)).contents
-    c_long(0)
-    >>> x.ctypes.data_as(ctypes.POINTER(ctypes.c_longlong)).contents
-    c_longlong(4294967296L)
+    31962608 # may vary
+    >>> x.ctypes.data_as(ctypes.POINTER(ctypes.c_uint32))
+    <__main__.LP_c_uint object at 0x7ff2fc1fc200> # may vary
+    >>> x.ctypes.data_as(ctypes.POINTER(ctypes.c_uint32)).contents
+    c_uint(0)
+    >>> x.ctypes.data_as(ctypes.POINTER(ctypes.c_uint64)).contents
+    c_ulong(4294967296)
     >>> x.ctypes.shape
-    <numpy.core._internal.c_long_Array_2 object at 0x01FFD580>
-    >>> x.ctypes.shape_as(ctypes.c_long)
-    <numpy.core._internal.c_long_Array_2 object at 0x01FCE620>
+    <numpy.core._internal.c_long_Array_2 object at 0x7ff2fc1fce60> # may vary
     >>> x.ctypes.strides
-    <numpy.core._internal.c_long_Array_2 object at 0x01FCE620>
-    >>> x.ctypes.strides_as(ctypes.c_longlong)
-    <numpy.core._internal.c_longlong_Array_2 object at 0x01F01300>
+    <numpy.core._internal.c_long_Array_2 object at 0x7ff2fc1ff320> # may vary
 
     """))
 
@@ -2373,7 +2316,8 @@ add_newdoc('numpy.core.multiarray', 'ndarray', ('shape',
     >>> np.zeros((4,2))[::2].shape = (-1,)
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
-    AttributeError: incompatible shape for a non-contiguous array
+    AttributeError: Incompatible shape for in-place modification. Use
+    `.reshape()` to make a copy with the desired shape.
 
     See Also
     --------
@@ -2507,7 +2451,7 @@ add_newdoc('numpy.core.multiarray', 'ndarray', ('T',
 
 
 add_newdoc('numpy.core.multiarray', 'ndarray', ('__array__',
-    """ a.__array__(|dtype) -> reference if type unchanged, copy otherwise.
+    """ a.__array__([dtype], /) -> reference if type unchanged, copy otherwise.
 
     Returns either a new reference to self if dtype is not given or a new array
     of provided data type if dtype is different from the current dtype of the
@@ -3953,7 +3897,7 @@ add_newdoc('numpy.core.multiarray', 'ndarray', ('tolist',
 
     Examples
     --------
-    For a 1D array, ``a.tolist()`` is almost the same as ``list(a)``, 
+    For a 1D array, ``a.tolist()`` is almost the same as ``list(a)``,
     except that ``tolist`` changes numpy scalars to Python scalars:
 
     >>> a = np.uint32([1, 2])
@@ -3988,8 +3932,8 @@ add_newdoc('numpy.core.multiarray', 'ndarray', ('tolist',
     """))
 
 
-tobytesdoc = """
-    a.{name}(order='C')
+add_newdoc('numpy.core.multiarray', 'ndarray', ('tobytes', """
+    a.tobytes(order='C')
 
     Construct Python bytes containing the raw data bytes in the array.
 
@@ -3999,11 +3943,11 @@ tobytesdoc = """
     unless the F_CONTIGUOUS flag in the array is set, in which case it
     means 'Fortran' order.
 
-    {deprecated}
+    .. versionadded:: 1.9.0
 
     Parameters
     ----------
-    order : {{'C', 'F', None}}, optional
+    order : {'C', 'F', None}, optional
         Order of the data for multidimensional arrays:
         C, Fortran, or the same as for the original array.
 
@@ -4022,18 +3966,19 @@ tobytesdoc = """
     >>> x.tobytes('F')
     b'\\x00\\x00\\x02\\x00\\x01\\x00\\x03\\x00'
 
-    """
+    """))
 
-add_newdoc('numpy.core.multiarray', 'ndarray',
-           ('tostring', tobytesdoc.format(name='tostring',
-                                          deprecated=
-                                          'This function is a compatibility '
-                                          'alias for tobytes. Despite its '
-                                          'name it returns bytes not '
-                                          'strings.')))
-add_newdoc('numpy.core.multiarray', 'ndarray',
-           ('tobytes', tobytesdoc.format(name='tobytes',
-                                         deprecated='.. versionadded:: 1.9.0')))
+
+add_newdoc('numpy.core.multiarray', 'ndarray', ('tostring', r"""
+    a.tostring(order='C')
+
+    A compatibility alias for `tobytes`, with exactly the same behavior.
+
+    Despite its name, it returns `bytes` not `str`\ s.
+
+    .. deprecated:: 1.19.0
+    """))
+
 
 add_newdoc('numpy.core.multiarray', 'ndarray', ('trace',
     """
@@ -4124,21 +4069,26 @@ add_newdoc('numpy.core.multiarray', 'ndarray', ('var',
 
 add_newdoc('numpy.core.multiarray', 'ndarray', ('view',
     """
-    a.view(dtype=None, type=None)
+    a.view([dtype][, type])
 
     New view of array with the same data.
+
+    .. note::
+        Passing None for ``dtype`` is different from omitting the parameter,
+        since the former invokes ``dtype(None)`` which is an alias for
+        ``dtype('float_')``.
 
     Parameters
     ----------
     dtype : data-type or ndarray sub-class, optional
-        Data-type descriptor of the returned view, e.g., float32 or int16. The
-        default, None, results in the view having the same data-type as `a`.
+        Data-type descriptor of the returned view, e.g., float32 or int16.
+        Omitting it results in the view having the same data-type as `a`.
         This argument can also be specified as an ndarray sub-class, which
         then specifies the type of the returned object (this is equivalent to
         setting the ``type`` parameter).
     type : Python type, optional
-        Type of the returned view, e.g., ndarray or matrix.  Again, the
-        default None results in type preservation.
+        Type of the returned view, e.g., ndarray or matrix.  Again, omission
+        of the parameter results in type preservation.
 
     Notes
     -----
@@ -4230,7 +4180,7 @@ add_newdoc('numpy.core.multiarray', 'ndarray', ('view',
 
 add_newdoc('numpy.core.umath', 'frompyfunc',
     """
-    frompyfunc(func, nin, nout)
+    frompyfunc(func, nin, nout, *[, identity])
 
     Takes an arbitrary Python function and returns a NumPy ufunc.
 
@@ -4245,6 +4195,13 @@ add_newdoc('numpy.core.umath', 'frompyfunc',
         The number of input arguments.
     nout : int
         The number of objects returned by `func`.
+    identity : object, optional
+        The value to use for the `~numpy.ufunc.identity` attribute of the resulting
+        object. If specified, this is equivalent to setting the underlying
+        C ``identity`` field to ``PyUFunc_IdentityValue``.
+        If omitted, the identity is set to ``PyUFunc_None``. Note that this is
+        _not_ equivalent to setting the identity to ``None``, which implies the
+        operation is reorderable.
 
     Returns
     -------
@@ -4437,6 +4394,14 @@ add_newdoc('numpy.core.umath', '_add_newdoc_ufunc',
     and then throwing away the ufunc.
     """)
 
+add_newdoc('numpy.core.multiarray', '_set_madvise_hugepage',
+    """
+    _set_madvise_hugepage(enabled: bool) -> bool
+
+    Set  or unset use of ``madvise (2)`` MADV_HUGEPAGE support when
+    allocating the array data. Returns the previously set value.
+    See `global_state` for more information.
+    """)
 
 add_newdoc('numpy.core._multiarray_tests', 'format_float_OSprintf_g',
     """
@@ -5044,7 +5009,7 @@ add_newdoc('numpy.core', 'ufunc', ('reduceat',
     """))
 
 add_newdoc('numpy.core', 'ufunc', ('outer',
-    """
+    r"""
     outer(A, B, **kwargs)
 
     Apply the ufunc `op` to all pairs (a, b) with a in `A` and b in `B`.
@@ -5078,7 +5043,13 @@ add_newdoc('numpy.core', 'ufunc', ('outer',
 
     See Also
     --------
-    numpy.outer
+    numpy.outer : A less powerful version of ``np.multiply.outer``
+                  that `ravel`\ s all inputs to 1D. This exists
+                  primarily for compatibility with old code.
+
+    tensordot : ``np.tensordot(a, b, axes=((), ()))`` and
+                ``np.multiply.outer(a, b)`` behave same for all
+                dimensions of a and b.
 
     Examples
     --------
@@ -6871,4 +6842,3 @@ for float_name in ('half', 'single', 'double', 'longdouble'):
         >>> np.{ftype}(-.25).as_integer_ratio()
         (-1, 4)
         """.format(ftype=float_name)))
-

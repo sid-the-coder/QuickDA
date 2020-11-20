@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 
 C declarations, CPP macros, and C functions for f2py2e.
@@ -14,8 +14,6 @@ $Date: 2005/05/06 11:42:34 $
 Pearu Peterson
 
 """
-from __future__ import division, absolute_import, print_function
-
 import sys
 import copy
 
@@ -542,7 +540,7 @@ cppmacros[
     'ARRSIZE'] = '#define ARRSIZE(dims,rank) (_PyArray_multiply_list(dims,rank))'
 cppmacros['OLDPYNUM'] = """\
 #ifdef OLDPYNUM
-#error You need to install NumPy version 13 or higher. See https://scipy.org/install.html
+#error You need to install NumPy version 0.13 or higher. See https://scipy.org/install.html
 #endif
 """
 ################# C functions ###############
@@ -646,7 +644,6 @@ fprintf(stderr,\"string_from_pyobj(str='%s',len=%d,inistr='%s',obj=%p)\\n\",(cha
         tmp = obj;
         Py_INCREF(tmp);
     }
-#if PY_VERSION_HEX >= 0x03000000
     else if (PyUnicode_Check(obj)) {
         tmp = PyUnicode_AsASCIIString(obj);
     }
@@ -661,11 +658,6 @@ fprintf(stderr,\"string_from_pyobj(str='%s',len=%d,inistr='%s',obj=%p)\\n\",(cha
             tmp = NULL;
         }
     }
-#else
-    else {
-        tmp = PyObject_Str(obj);
-    }
-#endif
     if (tmp == NULL) goto capi_fail;
     if (*len == -1)
         *len = PyString_GET_SIZE(tmp);
@@ -1041,6 +1033,8 @@ cfuncs[
     'try_pyarr_from_complex_double'] = 'static int try_pyarr_from_complex_double(PyObject* obj,complex_double* v) {\n    TRYCOMPLEXPYARRAYTEMPLATE(double,\'D\');\n}\n'
 
 needs['create_cb_arglist'] = ['CFUNCSMESS', 'PRINTPYOBJERR', 'MINMAX']
+
+# create the list of arguments to be used when calling back to python
 cfuncs['create_cb_arglist'] = """\
 static int create_cb_arglist(PyObject* fun,PyTupleObject* xa,const int maxnofargs,const int nofoptargs,int *nofargs,PyTupleObject **args,const char *errmess) {
     PyObject *tmp = NULL;
@@ -1066,6 +1060,10 @@ static int create_cb_arglist(PyObject* fun,PyTupleObject* xa,const int maxnofarg
                 tmp_fun = fun; /* built-in function */
                 Py_INCREF(tmp_fun);
                 tot = maxnofargs;
+                if (PyCFunction_Check(fun)) {
+                    /* In case the function has a co_argcount (like on PyPy) */
+                    di = 0;
+                }
                 if (xa != NULL)
                     tot += PyTuple_Size((PyObject *)xa);
             }
@@ -1094,13 +1092,8 @@ if (tmp_fun==NULL) {
 fprintf(stderr,\"Call-back argument must be function|instance|instance.__call__|f2py-function but got %s.\\n\",(fun==NULL?\"NULL\":Py_TYPE(fun)->tp_name));
 goto capi_fail;
 }
-#if PY_VERSION_HEX >= 0x03000000
     if (PyObject_HasAttrString(tmp_fun,\"__code__\")) {
         if (PyObject_HasAttrString(tmp = PyObject_GetAttrString(tmp_fun,\"__code__\"),\"co_argcount\")) {
-#else
-    if (PyObject_HasAttrString(tmp_fun,\"func_code\")) {
-        if (PyObject_HasAttrString(tmp = PyObject_GetAttrString(tmp_fun,\"func_code\"),\"co_argcount\")) {
-#endif
             PyObject *tmp_argcount = PyObject_GetAttrString(tmp,\"co_argcount\");
             Py_DECREF(tmp);
             if (tmp_argcount == NULL) {
@@ -1111,13 +1104,8 @@ goto capi_fail;
         }
     }
     /* Get the number of optional arguments */
-#if PY_VERSION_HEX >= 0x03000000
     if (PyObject_HasAttrString(tmp_fun,\"__defaults__\")) {
         if (PyTuple_Check(tmp = PyObject_GetAttrString(tmp_fun,\"__defaults__\")))
-#else
-    if (PyObject_HasAttrString(tmp_fun,\"func_defaults\")) {
-        if (PyTuple_Check(tmp = PyObject_GetAttrString(tmp_fun,\"func_defaults\")))
-#endif
             opt = PyTuple_Size(tmp);
         Py_XDECREF(tmp);
     }
@@ -1174,7 +1162,7 @@ def buildcfuncs():
 ############ Auxiliary functions for sorting needs ###################
 
 def append_needs(need, flag=1):
-    global outneeds, needs
+    # This function modifies the contents of the global `outneeds` dict.
     if isinstance(need, list):
         for n in need:
             append_needs(n, flag)
@@ -1241,7 +1229,7 @@ def append_needs(need, flag=1):
 
 
 def get_needs():
-    global outneeds, needs
+    # This function modifies the contents of the global `outneeds` dict.
     res = {}
     for n in outneeds.keys():
         out = []

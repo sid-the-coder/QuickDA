@@ -33,9 +33,6 @@ Record arrays allow us to access fields as properties::
   array([2., 2.])
 
 """
-from __future__ import division, absolute_import, print_function
-
-import sys
 import os
 import warnings
 from collections import Counter, OrderedDict
@@ -43,7 +40,7 @@ from collections import Counter, OrderedDict
 from . import numeric as sb
 from . import numerictypes as nt
 from numpy.compat import (
-    isfileobj, bytes, long, unicode, os_fspath, contextlib_nullcontext
+    isfileobj, os_fspath, contextlib_nullcontext
 )
 from numpy.core.overrides import set_module
 from .arrayprint import get_printoptions
@@ -98,7 +95,7 @@ def find_duplicate(list):
 
 
 @set_module('numpy')
-class format_parser(object):
+class format_parser:
     """
     Class to convert formats, names, titles description to a dtype.
 
@@ -160,8 +157,7 @@ class format_parser(object):
     def __init__(self, formats, names, titles, aligned=False, byteorder=None):
         self._parseFormats(formats, aligned)
         self._setfieldnames(names, titles)
-        self._createdescr(byteorder)
-        self.dtype = self._descr
+        self._createdtype(byteorder)
 
     def _parseFormats(self, formats, aligned=False):
         """ Parse the field formats """
@@ -188,10 +184,10 @@ class format_parser(object):
         """convert input field names into a list and assign to the _names
         attribute """
 
-        if (names):
-            if (type(names) in [list, tuple]):
+        if names:
+            if type(names) in [list, tuple]:
                 pass
-            elif isinstance(names, (str, unicode)):
+            elif isinstance(names, str):
                 names = names.split(',')
             else:
                 raise NameError("illegal input names %s" % repr(names))
@@ -211,25 +207,28 @@ class format_parser(object):
         if _dup:
             raise ValueError("Duplicate field names: %s" % _dup)
 
-        if (titles):
+        if titles:
             self._titles = [n.strip() for n in titles[:self._nfields]]
         else:
             self._titles = []
             titles = []
 
-        if (self._nfields > len(titles)):
+        if self._nfields > len(titles):
             self._titles += [None] * (self._nfields - len(titles))
 
-    def _createdescr(self, byteorder):
-        descr = sb.dtype({'names':self._names,
-                          'formats':self._f_formats,
-                          'offsets':self._offsets,
-                          'titles':self._titles})
-        if (byteorder is not None):
+    def _createdtype(self, byteorder):
+        dtype = sb.dtype({
+            'names': self._names,
+            'formats': self._f_formats,
+            'offsets': self._offsets,
+            'titles': self._titles,
+        })
+        if byteorder is not None:
             byteorder = _byteorderconv[byteorder[0]]
-            descr = descr.newbyteorder(byteorder)
+            dtype = dtype.newbyteorder(byteorder)
 
-        self._descr = descr
+        self.dtype = dtype
+
 
 class record(nt.void):
     """A data-type scalar that allows field access as attribute lookup.
@@ -251,7 +250,7 @@ class record(nt.void):
         return super(record, self).__str__()
 
     def __getattribute__(self, attr):
-        if attr in ['setfield', 'getfield', 'dtype']:
+        if attr in ('setfield', 'getfield', 'dtype'):
             return nt.void.__getattribute__(self, attr)
         try:
             return nt.void.__getattribute__(self, attr)
@@ -276,7 +275,7 @@ class record(nt.void):
                     "attribute '%s'" % attr)
 
     def __setattr__(self, attr, val):
-        if attr in ['setfield', 'getfield', 'dtype']:
+        if attr in ('setfield', 'getfield', 'dtype'):
             raise AttributeError("Cannot set '%s' attribute" % attr)
         fielddict = nt.void.__getattribute__(self, 'dtype').fields
         res = fielddict.get(attr, None)
@@ -433,7 +432,7 @@ class recarray(ndarray):
         if dtype is not None:
             descr = sb.dtype(dtype)
         else:
-            descr = format_parser(formats, names, titles, aligned, byteorder)._descr
+            descr = format_parser(formats, names, titles, aligned, byteorder).dtype
 
         if buf is None:
             self = ndarray.__new__(subtype, shape, (record, descr), order=order)
@@ -534,8 +533,7 @@ class recarray(ndarray):
     def __repr__(self):
 
         repr_dtype = self.dtype
-        if (self.dtype.type is record
-                or (not issubclass(self.dtype.type, nt.void))):
+        if self.dtype.type is record or not issubclass(self.dtype.type, nt.void):
             # If this is a full record array (has numpy.record dtype),
             # or if it has a scalar (non-void) dtype with no records,
             # represent it using the rec.array function. Since rec.array
@@ -583,10 +581,44 @@ class recarray(ndarray):
             return self.setfield(val, *res)
 
 
+def _deprecate_shape_0_as_None(shape):
+    if shape == 0:
+        warnings.warn(
+            "Passing `shape=0` to have the shape be inferred is deprecated, "
+            "and in future will be equivalent to `shape=(0,)`. To infer "
+            "the shape and suppress this warning, pass `shape=None` instead.",
+            FutureWarning, stacklevel=3)
+        return None
+    else:
+        return shape
+
+
 def fromarrays(arrayList, dtype=None, shape=None, formats=None,
                names=None, titles=None, aligned=False, byteorder=None):
-    """ create a record array from a (flat) list of arrays
+    """Create a record array from a (flat) list of arrays
 
+    Parameters
+    ----------
+    arrayList : list or tuple
+        List of array-like objects (such as lists, tuples,
+        and ndarrays).
+    dtype : data-type, optional
+        valid dtype for all arrays
+    shape : int or tuple of ints, optional
+        Shape of the resulting array. If not provided, inferred from
+        ``arrayList[0]``.
+    formats, names, titles, aligned, byteorder :
+        If `dtype` is ``None``, these arguments are passed to
+        `numpy.format_parser` to construct a dtype. See that function for
+        detailed documentation.
+
+    Returns
+    -------
+    np.recarray
+        Record array consisting of given arrayList columns.
+
+    Examples
+    --------
     >>> x1=np.array([1,2,3,4])
     >>> x2=np.array(['a','dd','xyz','12'])
     >>> x3=np.array([1.1,2,3,4])
@@ -596,30 +628,39 @@ def fromarrays(arrayList, dtype=None, shape=None, formats=None,
     >>> x1[1]=34
     >>> r.a
     array([1, 2, 3, 4])
+    
+    >>> x1 = np.array([1, 2, 3, 4])
+    >>> x2 = np.array(['a', 'dd', 'xyz', '12'])
+    >>> x3 = np.array([1.1, 2, 3,4])
+    >>> r = np.core.records.fromarrays(
+    ...     [x1, x2, x3],
+    ...     dtype=np.dtype([('a', np.int32), ('b', 'S3'), ('c', np.float32)]))
+    >>> r
+    rec.array([(1, b'a', 1.1), (2, b'dd', 2. ), (3, b'xyz', 3. ),
+               (4, b'12', 4. )],
+              dtype=[('a', '<i4'), ('b', 'S3'), ('c', '<f4')])
     """
 
     arrayList = [sb.asarray(x) for x in arrayList]
 
-    if shape is None or shape == 0:
-        shape = arrayList[0].shape
+    # NumPy 1.19.0, 2020-01-01
+    shape = _deprecate_shape_0_as_None(shape)
 
-    if isinstance(shape, int):
+    if shape is None:
+        shape = arrayList[0].shape
+    elif isinstance(shape, int):
         shape = (shape,)
 
     if formats is None and dtype is None:
         # go through each object in the list to see if it is an ndarray
         # and determine the formats.
-        formats = []
-        for obj in arrayList:
-            formats.append(obj.dtype)
+        formats = [obj.dtype for obj in arrayList]
 
     if dtype is not None:
         descr = sb.dtype(dtype)
-        _names = descr.names
     else:
-        parsed = format_parser(formats, names, titles, aligned, byteorder)
-        _names = parsed._names
-        descr = parsed._descr
+        descr = format_parser(formats, names, titles, aligned, byteorder).dtype
+    _names = descr.names
 
     # Determine shape from data-type.
     if len(descr) != len(arrayList):
@@ -647,20 +688,33 @@ def fromarrays(arrayList, dtype=None, shape=None, formats=None,
 
 def fromrecords(recList, dtype=None, shape=None, formats=None, names=None,
                 titles=None, aligned=False, byteorder=None):
-    """ create a recarray from a list of records in text form
+    """Create a recarray from a list of records in text form.
 
-        The data in the same field can be heterogeneous, they will be promoted
-        to the highest data type.  This method is intended for creating
-        smaller record arrays.  If used to create large array without formats
-        defined
+    Parameters
+    ----------
+    recList : sequence
+        data in the same field may be heterogeneous - they will be promoted
+        to the highest data type.
+    dtype : data-type, optional
+        valid dtype for all arrays
+    shape : int or tuple of ints, optional
+        shape of each array.
+    formats, names, titles, aligned, byteorder :
+        If `dtype` is ``None``, these arguments are passed to
+        `numpy.format_parser` to construct a dtype. See that function for
+        detailed documentation.
 
-        r=fromrecords([(2,3.,'abc')]*100000)
+        If both `formats` and `dtype` are None, then this will auto-detect
+        formats. Use list of tuples rather than list of lists for faster
+        processing.
 
-        it can be slow.
+    Returns
+    -------
+    np.recarray
+        record array consisting of given recList rows.
 
-        If formats is None, then this will auto-detect formats. Use list of
-        tuples rather than list of lists for faster processing.
-
+    Examples
+    --------
     >>> r=np.core.records.fromrecords([(456,'dbe',1.2),(2,'de',1.3)],
     ... names='col1,col2,col3')
     >>> print(r[0])
@@ -684,14 +738,16 @@ def fromrecords(recList, dtype=None, shape=None, formats=None, names=None,
     if dtype is not None:
         descr = sb.dtype((record, dtype))
     else:
-        descr = format_parser(formats, names, titles, aligned, byteorder)._descr
+        descr = format_parser(formats, names, titles, aligned, byteorder).dtype
 
     try:
         retval = sb.array(recList, dtype=descr)
     except (TypeError, ValueError):
-        if (shape is None or shape == 0):
+        # NumPy 1.19.0, 2020-01-01
+        shape = _deprecate_shape_0_as_None(shape)
+        if shape is None:
             shape = len(recList)
-        if isinstance(shape, (int, long)):
+        if isinstance(shape, int):
             shape = (shape,)
         if len(shape) > 1:
             raise ValueError("Can only deal with 1-d array.")
@@ -716,8 +772,58 @@ def fromrecords(recList, dtype=None, shape=None, formats=None, names=None,
 
 def fromstring(datastring, dtype=None, shape=None, offset=0, formats=None,
                names=None, titles=None, aligned=False, byteorder=None):
-    """ create a (read-only) record array from binary data contained in
-    a string"""
+    r"""Create a record array from binary data
+
+    Note that despite the name of this function it does not accept `str`
+    instances.
+
+    Parameters
+    ----------
+    datastring : bytes-like
+        Buffer of binary data
+    dtype : data-type, optional
+        Valid dtype for all arrays
+    shape : int or tuple of ints, optional
+        Shape of each array.
+    offset : int, optional
+        Position in the buffer to start reading from.
+    formats, names, titles, aligned, byteorder :
+        If `dtype` is ``None``, these arguments are passed to
+        `numpy.format_parser` to construct a dtype. See that function for
+        detailed documentation.
+
+
+    Returns
+    -------
+    np.recarray
+        Record array view into the data in datastring. This will be readonly
+        if `datastring` is readonly.
+
+    See Also
+    --------
+    numpy.frombuffer
+
+    Examples
+    --------
+    >>> a = b'\x01\x02\x03abc'
+    >>> np.core.records.fromstring(a, dtype='u1,u1,u1,S3')
+    rec.array([(1, 2, 3, b'abc')],
+            dtype=[('f0', 'u1'), ('f1', 'u1'), ('f2', 'u1'), ('f3', 'S3')])
+
+    >>> grades_dtype = [('Name', (np.str_, 10)), ('Marks', np.float64),
+    ...                 ('GradeLevel', np.int32)]
+    >>> grades_array = np.array([('Sam', 33.3, 3), ('Mike', 44.4, 5),
+    ...                         ('Aadi', 66.6, 6)], dtype=grades_dtype)
+    >>> np.core.records.fromstring(grades_array.tobytes(), dtype=grades_dtype)
+    rec.array([('Sam', 33.3, 3), ('Mike', 44.4, 5), ('Aadi', 66.6, 6)],
+            dtype=[('Name', '<U10'), ('Marks', '<f8'), ('GradeLevel', '<i4')])
+
+    >>> s = '\x01\x02\x03abc'
+    >>> np.core.records.fromstring(s, dtype='u1,u1,u1,S3')
+    Traceback (most recent call last)
+       ...
+    TypeError: a bytes-like object is required, not 'str'
+    """
 
     if dtype is None and formats is None:
         raise TypeError("fromstring() needs a 'dtype' or 'formats' argument")
@@ -725,10 +831,14 @@ def fromstring(datastring, dtype=None, shape=None, offset=0, formats=None,
     if dtype is not None:
         descr = sb.dtype(dtype)
     else:
-        descr = format_parser(formats, names, titles, aligned, byteorder)._descr
+        descr = format_parser(formats, names, titles, aligned, byteorder).dtype
 
     itemsize = descr.itemsize
-    if (shape is None or shape == 0 or shape == -1):
+
+    # NumPy 1.19.0, 2020-01-01
+    shape = _deprecate_shape_0_as_None(shape)
+
+    if shape in (None, -1):
         shape = (len(datastring) - offset) // itemsize
 
     _array = recarray(shape, descr, buf=datastring, offset=offset)
@@ -747,10 +857,30 @@ def fromfile(fd, dtype=None, shape=None, offset=0, formats=None,
              names=None, titles=None, aligned=False, byteorder=None):
     """Create an array from binary file data
 
-    If file is a string or a path-like object then that file is opened,
-    else it is assumed to be a file object. The file object must
-    support random access (i.e. it must have tell and seek methods).
+    Parameters
+    ----------
+    fd : str or file type
+        If file is a string or a path-like object then that file is opened,
+        else it is assumed to be a file object. The file object must
+        support random access (i.e. it must have tell and seek methods).
+    dtype : data-type, optional
+        valid dtype for all arrays
+    shape : int or tuple of ints, optional
+        shape of each array.
+    offset : int, optional
+        Position in the file to start reading from.
+    formats, names, titles, aligned, byteorder :
+        If `dtype` is ``None``, these arguments are passed to
+        `numpy.format_parser` to construct a dtype. See that function for
+        detailed documentation
 
+    Returns
+    -------
+    np.recarray
+        record array consisting of data enclosed in file.
+
+    Examples
+    --------
     >>> from tempfile import TemporaryFile
     >>> a = np.empty(10,dtype='f8,i4,a5')
     >>> a[5] = (0.5,10,'abcde')
@@ -771,9 +901,12 @@ def fromfile(fd, dtype=None, shape=None, offset=0, formats=None,
     if dtype is None and formats is None:
         raise TypeError("fromfile() needs a 'dtype' or 'formats' argument")
 
-    if (shape is None or shape == 0):
+    # NumPy 1.19.0, 2020-01-01
+    shape = _deprecate_shape_0_as_None(shape)
+
+    if shape is None:
         shape = (-1,)
-    elif isinstance(shape, (int, long)):
+    elif isinstance(shape, int):
         shape = (shape,)
 
     if isfileobj(fd):
@@ -784,14 +917,14 @@ def fromfile(fd, dtype=None, shape=None, offset=0, formats=None,
         ctx = open(os_fspath(fd), 'rb')
 
     with ctx as fd:
-        if (offset > 0):
+        if offset > 0:
             fd.seek(offset, 1)
         size = get_remaining_size(fd)
 
         if dtype is not None:
             descr = sb.dtype(dtype)
         else:
-            descr = format_parser(formats, names, titles, aligned, byteorder)._descr
+            descr = format_parser(formats, names, titles, aligned, byteorder).dtype
 
         itemsize = descr.itemsize
 
@@ -823,7 +956,7 @@ def array(obj, dtype=None, shape=None, offset=0, strides=None, formats=None,
     """
 
     if ((isinstance(obj, (type(None), str)) or isfileobj(obj)) and
-           (formats is None) and (dtype is None)):
+           formats is None and dtype is None):
         raise ValueError("Must define formats (or dtype) if object is "
                          "None, string, or an open file")
 
@@ -832,7 +965,7 @@ def array(obj, dtype=None, shape=None, offset=0, strides=None, formats=None,
         dtype = sb.dtype(dtype)
     elif formats is not None:
         dtype = format_parser(formats, names, titles,
-                              aligned, byteorder)._descr
+                              aligned, byteorder).dtype
     else:
         kwds = {'formats': formats,
                 'names': names,

@@ -30,48 +30,14 @@ class SubplotBase:
             If *nrows*, *ncols*, and *index* are all single digit numbers, then
             *args* can be passed as a single 3-digit number (e.g. 234 for
             (2, 3, 4)).
+
+        **kwargs
+            Keyword arguments are passed to the Axes (sub)class constructor.
         """
 
         self.figure = fig
-
-        if len(args) == 1:
-            if isinstance(args[0], SubplotSpec):
-                self._subplotspec = args[0]
-            else:
-                try:
-                    s = str(int(args[0]))
-                    rows, cols, num = map(int, s)
-                except ValueError:
-                    raise ValueError('Single argument to subplot must be '
-                        'a 3-digit integer')
-                self._subplotspec = GridSpec(rows, cols,
-                                             figure=self.figure)[num - 1]
-                # num - 1 for converting from MATLAB to python indexing
-        elif len(args) == 3:
-            rows, cols, num = args
-            rows = int(rows)
-            cols = int(cols)
-            if rows <= 0:
-                raise ValueError(f'Number of rows must be > 0, not {rows}')
-            if cols <= 0:
-                raise ValueError(f'Number of columns must be > 0, not {cols}')
-            if isinstance(num, tuple) and len(num) == 2:
-                num = [int(n) for n in num]
-                self._subplotspec = GridSpec(
-                        rows, cols,
-                        figure=self.figure)[(num[0] - 1):num[1]]
-            else:
-                if num < 1 or num > rows*cols:
-                    raise ValueError(
-                        f"num must be 1 <= num <= {rows*cols}, not {num}")
-                self._subplotspec = GridSpec(
-                        rows, cols, figure=self.figure)[int(num) - 1]
-                # num - 1 for converting from MATLAB to python indexing
-        else:
-            raise ValueError(f'Illegal argument(s) to subplot: {args}')
-
+        self._subplotspec = SubplotSpec._from_subplot_args(fig, args)
         self.update_params()
-
         # _axes_class is set in the subplot_class_factory
         self._axes_class.__init__(self, fig, self.figbox, **kwargs)
         # add a layout box to this, for both the full axis, and the poss
@@ -115,19 +81,19 @@ class SubplotBase:
         self.set_position(self.figbox)
 
     def get_subplotspec(self):
-        """get the SubplotSpec instance associated with the subplot"""
+        """Return the `.SubplotSpec` instance associated with the subplot."""
         return self._subplotspec
 
     def set_subplotspec(self, subplotspec):
-        """set the SubplotSpec instance associated with the subplot"""
+        """Set the `.SubplotSpec`. instance associated with the subplot."""
         self._subplotspec = subplotspec
 
     def get_gridspec(self):
-        """get the GridSpec instance associated with the subplot"""
+        """Return the `.GridSpec` instance associated with the subplot."""
         return self._subplotspec.get_gridspec()
 
     def update_params(self):
-        """update the subplot position from fig.subplotpars"""
+        """Update the subplot position from ``self.figure.subplotpars``."""
         self.figbox, _, _, self.numRows, self.numCols = \
             self.get_subplotspec().get_position(self.figure,
                                                 return_all=True)
@@ -200,6 +166,23 @@ class SubplotBase:
         self._twinned_axes.join(self, twin)
         return twin
 
+    def __repr__(self):
+        fields = []
+        if self.get_label():
+            fields += [f"label={self.get_label()!r}"]
+        titles = []
+        for k in ["left", "center", "right"]:
+            title = self.get_title(loc=k)
+            if title:
+                titles.append(f"{k!r}:{title!r}")
+        if titles:
+            fields += ["title={" + ",".join(titles) + "}"]
+        if self.get_xlabel():
+            fields += [f"xlabel={self.get_xlabel()!r}"]
+        if self.get_ylabel():
+            fields += [f"ylabel={self.get_ylabel()!r}"]
+        return f"<{self.__class__.__name__}:" + ", ".join(fields) + ">"
+
 
 # this here to support cartopy which was using a private part of the
 # API to register their Axes subclasses.
@@ -216,13 +199,17 @@ _subplot_classes = {}
 @functools.lru_cache(None)
 def subplot_class_factory(axes_class=None):
     """
-    This makes a new class that inherits from `.SubplotBase` and the
+    Make a new class that inherits from `.SubplotBase` and the
     given axes_class (which is assumed to be a subclass of `.axes.Axes`).
     This is perhaps a little bit roundabout to make a new class on
     the fly like this, but it means that a new Subplot class does
     not have to be created for every type of Axes.
     """
     if axes_class is None:
+        cbook.warn_deprecated(
+            "3.3", message="Support for passing None to subplot_class_factory "
+            "is deprecated since %(since)s; explicitly pass the default Axes "
+            "class instead. This will become an error %(removal)s.")
         axes_class = Axes
     try:
         # Avoid creating two different instances of GeoAxesSubplot...
@@ -236,14 +223,14 @@ def subplot_class_factory(axes_class=None):
                     {'_axes_class': axes_class})
 
 
-# This is provided for backward compatibility
-Subplot = subplot_class_factory()
+Subplot = subplot_class_factory(Axes)  # Provided for backward compatibility.
 
 
 def _picklable_subplot_class_constructor(axes_class):
     """
-    This stub class exists to return the appropriate subplot class when called
-    with an axes class. This is purely to allow pickling of Axes and Subplots.
+    Stub factory that returns an empty instance of the appropriate subplot
+    class when called with an axes class. This is purely to allow pickling of
+    Axes and Subplots.
     """
     subplot_class = subplot_class_factory(axes_class)
     return subplot_class.__new__(subplot_class)

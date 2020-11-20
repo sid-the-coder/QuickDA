@@ -41,7 +41,7 @@ def test_simple():
 
 
 @image_comparison(['multi_pickle.png'], remove_text=True, style='mpl20',
-                  tol={'aarch64': 0.082}.get(platform.machine(), 0.0))
+                  tol=0 if platform.machine() == 'x86_64' else 0.082)
 def test_complete():
     fig = plt.figure('Figure with a label?', figsize=(10, 6))
 
@@ -110,9 +110,7 @@ def test_complete():
 def test_no_pyplot():
     # tests pickle-ability of a figure not created with pyplot
     from matplotlib.backends.backend_pdf import FigureCanvasPdf
-    from matplotlib.figure import Figure
-
-    fig = Figure()
+    fig = mfigure.Figure()
     _ = FigureCanvasPdf(fig)
     ax = fig.add_subplot(1, 1, 1)
     ax.plot([1, 2, 3], [1, 2, 3])
@@ -192,7 +190,7 @@ def test_shared():
     assert fig.axes[1].get_xlim() == (10, 20)
 
 
-@pytest.mark.parametrize("cmap", cm.cmap_d.values())
+@pytest.mark.parametrize("cmap", cm._cmap_registry.values())
 def test_cmap(cmap):
     pickle.dumps(cmap)
 

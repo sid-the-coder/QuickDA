@@ -8,8 +8,6 @@ A collection of utilities for `numpy.ma`.
 :version: $Id: extras.py 3473 2007-10-29 15:18:13Z jarrod.millman $
 
 """
-from __future__ import division, absolute_import, print_function
-
 __all__ = [
     'apply_along_axis', 'apply_over_axes', 'atleast_1d', 'atleast_2d',
     'atleast_3d', 'average', 'clump_masked', 'clump_unmasked',
@@ -214,7 +212,7 @@ def masked_all_like(arr):
 #####--------------------------------------------------------------------------
 #---- --- Standard functions ---
 #####--------------------------------------------------------------------------
-class _fromnxfunction(object):
+class _fromnxfunction:
     """
     Defines a wrapper to adapt NumPy functions to masked arrays.
 
@@ -813,7 +811,7 @@ def compress_nd(x, axis=None):
     ----------
     x : array_like, MaskedArray
         The array to operate on. If not a MaskedArray instance (or if no array
-        elements are masked, `x` is interpreted as a MaskedArray with `mask`
+        elements are masked), `x` is interpreted as a MaskedArray with `mask`
         set to `nomask`.
     axis : tuple of ints or int, optional
         Which dimensions to suppress slices from can be configured with this

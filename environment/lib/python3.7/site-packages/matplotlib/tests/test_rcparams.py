@@ -14,19 +14,21 @@ from matplotlib import cbook
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import numpy as np
-from matplotlib.rcsetup import (validate_bool_maybe_none,
-                                validate_stringlist,
-                                validate_colorlist,
-                                validate_color,
-                                validate_bool,
-                                validate_fontweight,
-                                validate_nseq_int,
-                                validate_nseq_float,
-                                validate_cycler,
-                                validate_hatch,
-                                validate_hist_bins,
-                                validate_markevery,
-                                _validate_linestyle)
+from matplotlib.rcsetup import (
+    validate_bool,
+    validate_bool_maybe_none,
+    validate_color,
+    validate_colorlist,
+    validate_cycler,
+    validate_float,
+    validate_fontweight,
+    validate_hatch,
+    validate_hist_bins,
+    validate_int,
+    validate_markevery,
+    validate_stringlist,
+    _validate_linestyle,
+    _listify_validator)
 
 
 def test_rcparams(tmpdir):
@@ -53,6 +55,14 @@ def test_rcparams(tmpdir):
     with mpl.rc_context(fname=rcpath, rc={'lines.linewidth': 44}):
         assert mpl.rcParams['lines.linewidth'] == 44
     assert mpl.rcParams['lines.linewidth'] == linewidth
+
+    # test context as decorator (and test reusability, by calling func twice)
+    @mpl.rc_context({'lines.linewidth': 44})
+    def func():
+        assert mpl.rcParams['lines.linewidth'] == 44
+
+    func()
+    func()
 
     # test rc_file
     mpl.rc_file(rcpath)
@@ -125,9 +135,8 @@ def test_Bug_2543():
         # real test is that this does not raise
         assert validate_bool_maybe_none(None) is None
         assert validate_bool_maybe_none("none") is None
-
-    with pytest.raises(ValueError):
-        validate_bool_maybe_none("blah")
+        with pytest.raises(ValueError):
+            validate_bool_maybe_none("blah")
     with pytest.raises(ValueError):
         validate_bool(None)
     with pytest.raises(ValueError):
@@ -218,11 +227,11 @@ def generate_validator_testcases(valid):
                      ((1, 2), ['1', '2']),
                      (np.array([1, 2]), ['1', '2']),
                      ),
-         'fail': ((dict(), ValueError),
+         'fail': ((set(), ValueError),
                   (1, ValueError),
                   )
          },
-        {'validator': validate_nseq_int(2),
+        {'validator': _listify_validator(validate_int, n=2),
          'success': ((_, [1, 2])
                      for _ in ('1, 2', [1.5, 2.5], [1, 2],
                                (1, 2), np.array((1, 2)))),
@@ -231,7 +240,7 @@ def generate_validator_testcases(valid):
                             (1, 2, 3)
                             ))
          },
-        {'validator': validate_nseq_float(2),
+        {'validator': _listify_validator(validate_float, n=2),
          'success': ((_, [1.5, 2.5])
                      for _ in ('1.5, 2.5', [1.5, 2.5], [1.5, 2.5],
                                (1.5, 2.5), np.array((1.5, 2.5)))),
@@ -287,8 +296,8 @@ def generate_validator_testcases(valid):
          'success': (('--|', '--|'), ('\\oO', '\\oO'),
                      ('/+*/.x', '/+*/.x'), ('', '')),
          'fail': (('--_', ValueError),
-                 (8, ValueError),
-                 ('X', ValueError)),
+                  (8, ValueError),
+                  ('X', ValueError)),
          },
         {'validator': validate_colorlist,
          'success': (('r,g,b', ['r', 'g', 'b']),
@@ -310,16 +319,16 @@ def generate_validator_testcases(valid):
                      ('AABBCC00', '#AABBCC00'),  # RGBA hex code
                      ('tab:blue', 'tab:blue'),  # named color
                      ('C12', 'C12'),  # color from cycle
-                     ('(0, 1, 0)', [0.0, 1.0, 0.0]),  # RGB tuple
+                     ('(0, 1, 0)', (0.0, 1.0, 0.0)),  # RGB tuple
                      ((0, 1, 0), (0, 1, 0)),  # non-string version
-                     ('(0, 1, 0, 1)', [0.0, 1.0, 0.0, 1.0]),  # RGBA tuple
+                     ('(0, 1, 0, 1)', (0.0, 1.0, 0.0, 1.0)),  # RGBA tuple
                      ((0, 1, 0, 1), (0, 1, 0, 1)),  # non-string version
-                     ('(0, 1, "0.5")', [0.0, 1.0, 0.5]),  # unusual but valid
                      ),
          'fail': (('tab:veryblue', ValueError),  # invalid name
                   ('(0, 1)', ValueError),  # tuple with length < 3
                   ('(0, 1, 0, 1, 0)', ValueError),  # tuple with length > 4
                   ('(0, 1, none)', ValueError),  # cannot cast none to float
+                  ('(0, 1, "0.5")', ValueError),  # last one not a float
                   ),
          },
         {'validator': validate_hist_bins,
@@ -370,18 +379,20 @@ def generate_validator_testcases(valid):
                      ('', ''), (' ', ' '),
                      ('None', 'none'), ('none', 'none'),
                      ('DoTtEd', 'dotted'),  # case-insensitive
-                     (['1.23', '4.56'], (None, [1.23, 4.56])),
-                     ([1.23, 456], (None, [1.23, 456.0])),
-                     ([1, 2, 3, 4], (None, [1.0, 2.0, 3.0, 4.0])),
+                     ('1, 3', (0, (1, 3))),
+                     ([1.23, 456], (0, [1.23, 456.0])),
+                     ([1, 2, 3, 4], (0, [1.0, 2.0, 3.0, 4.0])),
+                     ((0, [1, 2]), (0, [1, 2])),
+                     ((-1, [1, 2]), (-1, [1, 2])),
                      ),
          'fail': (('aardvark', ValueError),  # not a valid string
                   (b'dotted', ValueError),
                   ('dotted'.encode('utf-16'), ValueError),
-                  ((None, [1, 2]), ValueError),  # (offset, dashes) != OK
-                  ((0, [1, 2]), ValueError),  # idem
-                  ((-1, [1, 2]), ValueError),  # idem
                   ([1, 2, 3], ValueError),  # sequence with odd length
                   (1.23, ValueError),  # not a sequence
+                  (("a", [1, 2]), ValueError),  # wrong explicit offset
+                  ((1, [1, 2, 3]), ValueError),  # odd length sequence
+                  (([1, 2], 1), ValueError),  # inverted offset/onoff
                   )
          },
     )
@@ -443,71 +454,16 @@ def test_keymaps():
 
 
 def test_rcparams_reset_after_fail():
-
     # There was previously a bug that meant that if rc_context failed and
     # raised an exception due to issues in the supplied rc parameters, the
     # global rc parameters were left in a modified state.
-
     with mpl.rc_context(rc={'text.usetex': False}):
-
         assert mpl.rcParams['text.usetex'] is False
-
         with pytest.raises(KeyError):
             with mpl.rc_context(rc=OrderedDict([('text.usetex', True),
                                                 ('test.blah', True)])):
                 pass
-
         assert mpl.rcParams['text.usetex'] is False
-
-
-def test_if_rctemplate_is_up_to_date():
-    # This tests if the matplotlibrc.template file contains all valid rcParams.
-    deprecated = {*mpl._all_deprecated, *mpl._deprecated_remain_as_none}
-    with cbook._get_data_path('matplotlibrc').open() as file:
-        rclines = file.readlines()
-    missing = {}
-    for k, v in mpl.defaultParams.items():
-        if k[0] == "_":
-            continue
-        if k in deprecated:
-            continue
-        found = False
-        for line in rclines:
-            if k in line:
-                found = True
-        if not found:
-            missing.update({k: v})
-    if missing:
-        raise ValueError("The following params are missing in the "
-                         "matplotlibrc.template file: {}"
-                         .format(missing.items()))
-
-
-def test_if_rctemplate_would_be_valid(tmpdir):
-    # This tests if the matplotlibrc.template file would result in a valid
-    # rc file if all lines are uncommented.
-    with cbook._get_data_path('matplotlibrc').open() as file:
-        rclines = file.readlines()
-    newlines = []
-    for line in rclines:
-        if line[0] == "#":
-            newline = line[1:]
-        else:
-            newline = line
-        if "$TEMPLATE_BACKEND" in newline:
-            newline = "backend : Agg"
-        if "datapath" in newline:
-            newline = ""
-        newlines.append(newline)
-    d = tmpdir.mkdir('test1')
-    fname = str(d.join('testrcvalid.temp'))
-    with open(fname, "w") as f:
-        f.writelines(newlines)
-    with pytest.warns(None) as record:
-        mpl.rc_params_from_file(fname,
-                                fail_on_error=True,
-                                use_default_template=False)
-        assert len(record) == 0
 
 
 @pytest.mark.skipif(sys.platform != "linux", reason="Linux only")
@@ -517,7 +473,10 @@ def test_backend_fallback_headless(tmpdir):
     with pytest.raises(subprocess.CalledProcessError):
         subprocess.run(
             [sys.executable, "-c",
-             "import matplotlib; matplotlib.use('tkagg')"],
+             ("import matplotlib;" +
+              "matplotlib.use('tkagg');" +
+              "import matplotlib.pyplot")
+             ],
             env=env, check=True)
 
 

@@ -74,7 +74,7 @@ def quantity_converter():
 # Tests that the conversion machinery works properly for classes that
 # work as a facade over numpy arrays (like pint)
 @image_comparison(['plot_pint.png'], remove_text=False, style='mpl20',
-                  tol={'aarch64': 0.02}.get(platform.machine(), 0.0))
+                  tol=0 if platform.machine() == 'x86_64' else 0.01)
 def test_numpy_facade(quantity_converter):
     # use former defaults to match existing baseline image
     plt.rcParams['axes.formatter.limits'] = -7, 7
@@ -101,7 +101,7 @@ def test_numpy_facade(quantity_converter):
 
 # Tests gh-8908
 @image_comparison(['plot_masked_units.png'], remove_text=True, style='mpl20',
-                  tol={'aarch64': 0.02}.get(platform.machine(), 0.0))
+                  tol=0 if platform.machine() == 'x86_64' else 0.01)
 def test_plot_masked_units():
     data = np.linspace(-5, 5)
     data_masked = np.ma.array(data, mask=(data > -2) & (data < 2))
@@ -130,10 +130,9 @@ def test_jpl_bar_units():
     x = [0*units.km, 1*units.km, 2*units.km]
     w = [1*day, 2*day, 3*day]
     b = units.Epoch("ET", dt=datetime(2009, 4, 25))
-
     fig, ax = plt.subplots()
     ax.bar(x, w, bottom=b)
-    ax.set_ylim([b-1*day, b+w[-1]+1*day])
+    ax.set_ylim([b-1*day, b+w[-1]+(1.001)*day])
 
 
 @image_comparison(['jpl_barh_units.png'],
@@ -149,7 +148,7 @@ def test_jpl_barh_units():
 
     fig, ax = plt.subplots()
     ax.barh(x, w, left=b)
-    ax.set_xlim([b-1*day, b+w[-1]+1*day])
+    ax.set_xlim([b-1*day, b+w[-1]+(1.001)*day])
 
 
 def test_empty_arrays():
@@ -158,10 +157,8 @@ def test_empty_arrays():
 
 
 def test_scatter_element0_masked():
-
     times = np.arange('2005-02', '2005-03', dtype='datetime64[D]')
-
-    y = np.arange(len(times), dtype='float')
+    y = np.arange(len(times), dtype=float)
     y[0] = np.nan
     fig, ax = plt.subplots()
     ax.scatter(times, y)

@@ -341,7 +341,7 @@ structured datatype has just a single field::
  >>> nostruct[:] = twofield
  Traceback (most recent call last):
  ...
- TypeError: Cannot cast scalar from dtype([('A', '<i4'), ('B', '<i4')]) to dtype('int32') according to the rule 'unsafe'
+ TypeError: Cannot cast array data from dtype([('A', '<i4'), ('B', '<i4')]) to dtype('int32') according to the rule 'unsafe'
 
 Assignment from other Structured Arrays
 ```````````````````````````````````````
@@ -644,4 +644,3 @@ attribute takes precedence. Such fields will be inaccessible by attribute but
 will still be accessible by index.
 
 """
-from __future__ import division, absolute_import, print_function

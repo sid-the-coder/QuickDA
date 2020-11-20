@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: quickda
-Version: 0.2.0
+Version: 0.2.1
 Summary: Simple & Easy-to-use python modules to perform Quick Exploratory Data Analysis for any structured dataset!
 Home-page: https://github.com/sid-the-coder/QuickDA
 Author: Sidheswar Venkatachalapathi
@@ -112,7 +112,6 @@ Description: # Quick-EDA
         1. **Basic Preprocessing for Text Data** - Tokenization, Normalization, Noise Removal, Lemmatization 
         2. **EDA for Text Data** - NGrams, POS tagging, Word Cloud, Sentiment Analysis
         3. **Quick Insight Generation for all EDA steps** - Generate easy-to-read textual insights
-        3. **Quick Excel View of Data** - Filter, Sort, Quick Pivot Tables inside Jupyter Notebook
 Platform: UNKNOWN
 Classifier: Programming Language :: Python :: 3
 Classifier: License :: OSI Approved :: MIT License

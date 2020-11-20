@@ -57,7 +57,7 @@ end
 # Unset irrelevant variables.
 deactivate nondestructive
 
-set -gx VIRTUAL_ENV '/Users/Sidheswar/Downloads/Github/Easy-Data-Analysis-With-Pandas/environment'
+set -gx VIRTUAL_ENV '/Users/Sidheswar/Downloads/Github/QuickDA/environment'
 
 # https://github.com/fish-shell/fish-shell/issues/436 altered PATH handling
 if test (echo $FISH_VERSION | head -c 1) -lt 3

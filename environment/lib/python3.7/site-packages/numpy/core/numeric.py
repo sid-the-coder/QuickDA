@@ -1,15 +1,11 @@
-from __future__ import division, absolute_import, print_function
-
 import functools
 import itertools
 import operator
 import sys
 import warnings
 import numbers
-import contextlib
 
 import numpy as np
-from numpy.compat import pickle, basestring
 from . import multiarray
 from .multiarray import (
     _fastCopyAndTranspose as fastCopyAndTranspose, ALLOW_THREADS,
@@ -17,12 +13,10 @@ from .multiarray import (
     WRAP, arange, array, broadcast, can_cast, compare_chararrays,
     concatenate, copyto, dot, dtype, empty,
     empty_like, flatiter, frombuffer, fromfile, fromiter, fromstring,
-    inner, int_asbuffer, lexsort, matmul, may_share_memory,
+    inner, lexsort, matmul, may_share_memory,
     min_scalar_type, ndarray, nditer, nested_iters, promote_types,
     putmask, result_type, set_numeric_ops, shares_memory, vdot, where,
     zeros, normalize_axis_index)
-if sys.version_info[0] < 3:
-    from .multiarray import newbuffer, getbuffer
 
 from . import overrides
 from . import umath
@@ -39,12 +33,6 @@ bitwise_not = invert
 ufunc = type(sin)
 newaxis = None
 
-if sys.version_info[0] >= 3:
-    import builtins
-else:
-    import __builtin__ as builtins
-
-
 array_function_dispatch = functools.partial(
     overrides.array_function_dispatch, module='numpy')
 
@@ -52,7 +40,7 @@ array_function_dispatch = functools.partial(
 __all__ = [
     'newaxis', 'ndarray', 'flatiter', 'nditer', 'nested_iters', 'ufunc',
     'arange', 'array', 'zeros', 'count_nonzero', 'empty', 'broadcast', 'dtype',
-    'fromstring', 'fromfile', 'frombuffer', 'int_asbuffer', 'where',
+    'fromstring', 'fromfile', 'frombuffer', 'where',
     'argwhere', 'copyto', 'concatenate', 'fastCopyAndTranspose', 'lexsort',
     'set_numeric_ops', 'can_cast', 'promote_types', 'min_scalar_type',
     'result_type', 'isfortran', 'empty_like', 'zeros_like', 'ones_like',
@@ -66,9 +54,6 @@ __all__ = [
     'BUFSIZE', 'ALLOW_THREADS', 'ComplexWarning', 'full', 'full_like',
     'matmul', 'shares_memory', 'may_share_memory', 'MAY_SHARE_BOUNDS',
     'MAY_SHARE_EXACT', 'TooHardError', 'AxisError']
-
-if sys.version_info[0] < 3:
-    __all__.extend(['getbuffer', 'newbuffer'])
 
 
 @set_module('numpy')
@@ -289,7 +274,7 @@ def full(shape, fill_value, dtype=None, order='C'):
     ----------
     shape : int or sequence of ints
         Shape of the new array, e.g., ``(2, 3)`` or ``2``.
-    fill_value : scalar
+    fill_value : scalar or array_like
         Fill value.
     dtype : data-type, optional
         The desired data-type for the array  The default, None, means
@@ -318,6 +303,10 @@ def full(shape, fill_value, dtype=None, order='C'):
     >>> np.full((2, 2), 10)
     array([[10, 10],
            [10, 10]])
+
+    >>> np.full((2, 2), [1, 2])
+    array([[1, 2],
+           [1, 2]])
 
     """
     if dtype is None:
@@ -395,12 +384,12 @@ def full_like(a, fill_value, dtype=None, order='K', subok=True, shape=None):
     return res
 
 
-def _count_nonzero_dispatcher(a, axis=None):
+def _count_nonzero_dispatcher(a, axis=None, *, keepdims=None):
     return (a,)
 
 
 @array_function_dispatch(_count_nonzero_dispatcher)
-def count_nonzero(a, axis=None):
+def count_nonzero(a, axis=None, *, keepdims=False):
     """
     Counts the number of non-zero values in the array ``a``.
 
@@ -425,6 +414,13 @@ def count_nonzero(a, axis=None):
 
         .. versionadded:: 1.12.0
 
+    keepdims : bool, optional
+        If this is set to True, the axes that are counted are left
+        in the result as dimensions with size one. With this option,
+        the result will broadcast correctly against the input array.
+
+        .. versionadded:: 1.19.0
+
     Returns
     -------
     count : int or array of int
@@ -440,15 +436,19 @@ def count_nonzero(a, axis=None):
     --------
     >>> np.count_nonzero(np.eye(4))
     4
-    >>> np.count_nonzero([[0,1,7,0,0],[3,0,0,2,19]])
+    >>> a = np.array([[0, 1, 7, 0],
+    ...               [3, 0, 2, 19]])
+    >>> np.count_nonzero(a)
     5
-    >>> np.count_nonzero([[0,1,7,0,0],[3,0,0,2,19]], axis=0)
-    array([1, 1, 1, 1, 1])
-    >>> np.count_nonzero([[0,1,7,0,0],[3,0,0,2,19]], axis=1)
+    >>> np.count_nonzero(a, axis=0)
+    array([1, 1, 2, 1])
+    >>> np.count_nonzero(a, axis=1)
     array([2, 3])
-
+    >>> np.count_nonzero(a, axis=1, keepdims=True)
+    array([[2],
+           [3]])
     """
-    if axis is None:
+    if axis is None and not keepdims:
         return multiarray.count_nonzero(a)
 
     a = asanyarray(a)
@@ -459,7 +459,7 @@ def count_nonzero(a, axis=None):
     else:
         a_bool = a.astype(np.bool_, copy=False)
 
-    return a_bool.sum(axis=axis, dtype=np.intp)
+    return a_bool.sum(axis=axis, dtype=np.intp, keepdims=keepdims)
 
 
 @set_module('numpy')
@@ -635,7 +635,7 @@ _mode_from_name_dict = {'v': 0,
 
 
 def _mode_from_name(mode):
-    if isinstance(mode, basestring):
+    if isinstance(mode, str):
         return _mode_from_name_dict[mode.lower()[0]]
     return mode
 
@@ -857,8 +857,11 @@ def outer(a, b, out=None):
     --------
     inner
     einsum : ``einsum('i,j->ij', a.ravel(), b.ravel())`` is the equivalent.
-    ufunc.outer : A generalization to N dimensions and other operations.
-                  ``np.multiply.outer(a.ravel(), b.ravel())`` is the equivalent.
+    ufunc.outer : A generalization to dimensions other than 1D and other
+                  operations. ``np.multiply.outer(a.ravel(), b.ravel())``
+                  is the equivalent.
+    tensordot : ``np.tensordot(a.ravel(), b.ravel(), axes=((), ()))``
+                is the equivalent.
 
     References
     ----------
@@ -1226,11 +1229,39 @@ def rollaxis(a, axis, start=0):
     a : ndarray
         Input array.
     axis : int
-        The axis to roll backwards.  The positions of the other axes do not
+        The axis to be rolled. The positions of the other axes do not
         change relative to one another.
     start : int, optional
-        The axis is rolled until it lies before this position.  The default,
-        0, results in a "complete" roll.
+        When ``start <= axis``, the axis is rolled back until it lies in
+        this position. When ``start > axis``, the axis is rolled until it
+        lies before this position. The default, 0, results in a "complete"
+        roll. The following table describes how negative values of ``start``
+        are interpreted:
+
+        .. table::
+           :align: left
+
+           +-------------------+----------------------+
+           |     ``start``     | Normalized ``start`` |
+           +===================+======================+
+           | ``-(arr.ndim+1)`` | raise ``AxisError``  |
+           +-------------------+----------------------+
+           | ``-arr.ndim``     | 0                    |
+           +-------------------+----------------------+
+           | |vdots|           | |vdots|              |
+           +-------------------+----------------------+
+           | ``-1``            | ``arr.ndim-1``       |
+           +-------------------+----------------------+
+           | ``0``             | ``0``                |
+           +-------------------+----------------------+
+           | |vdots|           | |vdots|              |
+           +-------------------+----------------------+
+           | ``arr.ndim``      | ``arr.ndim``         |
+           +-------------------+----------------------+
+           | ``arr.ndim + 1``  | raise ``AxisError``  |
+           +-------------------+----------------------+
+           
+        .. |vdots|   unicode:: U+22EE .. Vertical Ellipsis
 
     Returns
     -------
@@ -1723,7 +1754,7 @@ def indices(dimensions, dtype=int, sparse=False):
 
 
 @set_module('numpy')
-def fromfunction(function, shape, **kwargs):
+def fromfunction(function, shape, *, dtype=float, **kwargs):
     """
     Construct an array by executing a function over each coordinate.
 
@@ -1774,7 +1805,6 @@ def fromfunction(function, shape, **kwargs):
            [2, 3, 4]])
 
     """
-    dtype = kwargs.pop('dtype', float)
     args = indices(shape, dtype=dtype)
     return function(*args, **kwargs)
 
@@ -2280,12 +2310,12 @@ def isclose(a, b, rtol=1.e-5, atol=1.e-8, equal_nan=False):
         return cond[()]  # Flatten 0d arrays to scalars
 
 
-def _array_equal_dispatcher(a1, a2):
+def _array_equal_dispatcher(a1, a2, equal_nan=None):
     return (a1, a2)
 
 
 @array_function_dispatch(_array_equal_dispatcher)
-def array_equal(a1, a2):
+def array_equal(a1, a2, equal_nan=False):
     """
     True if two arrays have the same shape and elements, False otherwise.
 
@@ -2293,6 +2323,12 @@ def array_equal(a1, a2):
     ----------
     a1, a2 : array_like
         Input arrays.
+    equal_nan : bool
+        Whether to compare NaN's as equal. If the dtype of a1 and a2 is
+        complex, values will be considered equal if either the real or the
+        imaginary component of a given value is ``nan``.
+
+        .. versionadded:: 1.19.0
 
     Returns
     -------
@@ -2316,7 +2352,21 @@ def array_equal(a1, a2):
     False
     >>> np.array_equal([1, 2], [1, 4])
     False
+    >>> a = np.array([1, np.nan])
+    >>> np.array_equal(a, a)
+    False
+    >>> np.array_equal(a, a, equal_nan=True)
+    True
 
+    When ``equal_nan`` is True, complex values with nan components are
+    considered equal if either the real *or* the imaginary components are nan.
+
+    >>> a = np.array([1 + 1j])
+    >>> b = a.copy()
+    >>> a.real = np.nan
+    >>> b.imag = np.nan
+    >>> np.array_equal(a, b, equal_nan=True)
+    True
     """
     try:
         a1, a2 = asarray(a1), asarray(a2)
@@ -2324,7 +2374,15 @@ def array_equal(a1, a2):
         return False
     if a1.shape != a2.shape:
         return False
-    return bool(asarray(a1 == a2).all())
+    if not equal_nan:
+        return bool(asarray(a1 == a2).all())
+    # Handling NaN values if equal_nan is True
+    a1nan, a2nan = isnan(a1), isnan(a2)
+    # NaN's occur at different locations
+    if not (a1nan == a2nan).all():
+        return False
+    # Shapes of a1, a2 and masks are guaranteed to be consistent by this point
+    return bool(asarray(a1[~a1nan] == a2[~a1nan]).all())
 
 
 def _array_equiv_dispatcher(a1, a2):

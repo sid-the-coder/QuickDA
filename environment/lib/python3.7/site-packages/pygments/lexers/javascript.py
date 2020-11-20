@@ -5,7 +5,7 @@
 
     Lexers for JavaScript and related languages.
 
-    :copyright: Copyright 2006-2019 by the Pygments team, see AUTHORS.
+    :copyright: Copyright 2006-2020 by the Pygments team, see AUTHORS.
     :license: BSD, see LICENSE for details.
 """
 
@@ -26,7 +26,7 @@ JS_IDENT_START = ('(?:[$_' + uni.combine('Lu', 'Ll', 'Lt', 'Lm', 'Lo', 'Nl') +
                   ']|\\\\u[a-fA-F0-9]{4})')
 JS_IDENT_PART = ('(?:[$' + uni.combine('Lu', 'Ll', 'Lt', 'Lm', 'Lo', 'Nl',
                                        'Mn', 'Mc', 'Nd', 'Pc') +
-                 u'\u200c\u200d]|\\\\u[a-fA-F0-9]{4})')
+                 '\u200c\u200d]|\\\\u[a-fA-F0-9]{4})')
 JS_IDENT = JS_IDENT_START + '(?:' + JS_IDENT_PART + ')*'
 
 
@@ -64,11 +64,17 @@ class JavascriptLexer(RegexLexer):
             (r'\A#! ?/.*?\n', Comment.Hashbang),  # recognized by node.js
             (r'^(?=\s|/|<!--)', Text, 'slashstartsregex'),
             include('commentsandwhitespace'),
-            (r'(\.\d+|[0-9]+\.[0-9]*)([eE][-+]?[0-9]+)?', Number.Float),
-            (r'0[bB][01]+', Number.Bin),
-            (r'0[oO][0-7]+', Number.Oct),
-            (r'0[xX][0-9a-fA-F]+', Number.Hex),
-            (r'[0-9]+', Number.Integer),
+
+            # Numeric literals
+            (r'0[bB][01]+n?', Number.Bin),
+            (r'0[oO]?[0-7]+n?', Number.Oct),  # Browsers support "0o7" and "07" notations
+            (r'0[xX][0-9a-fA-F]+n?', Number.Hex),
+            (r'[0-9]+n', Number.Integer),  # Javascript BigInt requires an "n" postfix
+            # Javascript doesn't have actual integer literals, so every other
+            # numeric literal is handled by the regex below (including "normal")
+            # integers
+            (r'(\.[0-9]+|[0-9]+\.[0-9]*|[0-9]+)([eE][-+]?[0-9]+)?', Number.Float),
+
             (r'\.\.\.|=>', Punctuation),
             (r'\+\+|--|~|&&|\?|:|\|\||\\(?=\n)|'
              r'(<<|>>>?|==?|!=?|[-<>+*%&|^/])=?', Operator, 'slashstartsregex'),
@@ -263,7 +269,7 @@ class LiveScriptLexer(RegexLexer):
             default('#pop'),
         ],
         'root': [
-            (r'^(?=\s|/)', Text, 'slashstartsregex'),
+            (r'\A(?=\s|/)', Text, 'slashstartsregex'),
             include('commentsandwhitespace'),
             (r'(?:\([^()]+\))?[ ]*[~-]{1,2}>|'
              r'(?:\(?[^()\n]+\)?)?[ ]*<[~-]{1,2}', Name.Function),
@@ -340,7 +346,7 @@ class LiveScriptLexer(RegexLexer):
 
 class DartLexer(RegexLexer):
     """
-    For `Dart <http://dartlang.org/>`_ source code.
+    For `Dart <http://dart.dev/>`_ source code.
 
     .. versionadded:: 1.5
     """
@@ -361,15 +367,16 @@ class DartLexer(RegexLexer):
             (r'[^\S\n]+', Text),
             (r'//.*?\n', Comment.Single),
             (r'/\*.*?\*/', Comment.Multiline),
-            (r'\b(class)\b(\s+)',
+            (r'\b(class|extension|mixin)\b(\s+)',
              bygroups(Keyword.Declaration, Text), 'class'),
-            (r'\b(assert|break|case|catch|continue|default|do|else|finally|for|'
-             r'if|in|is|new|return|super|switch|this|throw|try|while)\b',
+            (r'\b(as|assert|break|case|catch|const|continue|default|do|else|finally|'
+             r'for|if|in|is|new|rethrow|return|super|switch|this|throw|try|while)\b',
              Keyword),
-            (r'\b(abstract|async|await|const|extends|factory|final|get|'
-             r'implements|native|operator|set|static|sync|typedef|var|with|'
-             r'yield)\b', Keyword.Declaration),
-            (r'\b(bool|double|dynamic|int|num|Object|String|void)\b', Keyword.Type),
+            (r'\b(abstract|async|await|const|covariant|extends|external|factory|final|'
+             r'get|implements|late|native|on|operator|required|set|static|sync|typedef|'
+             r'var|with|yield)\b', Keyword.Declaration),
+            (r'\b(bool|double|dynamic|int|num|Function|Never|Null|Object|String|void)\b',
+             Keyword.Type),
             (r'\b(false|null|true)\b', Keyword.Constant),
             (r'[~!%^&*+=|?:<>/-]|as\b', Operator),
             (r'@[a-zA-Z_$]\w*', Name.Decorator),
@@ -389,7 +396,7 @@ class DartLexer(RegexLexer):
         'import_decl': [
             include('string_literal'),
             (r'\s+', Text),
-            (r'\b(as|show|hide)\b', Keyword),
+            (r'\b(as|deferred|show|hide)\b', Keyword),
             (r'[a-zA-Z_$]\w*', Name),
             (r'\,', Punctuation),
             (r'\;', Punctuation, '#pop')
@@ -1037,7 +1044,7 @@ class CoffeeScriptLexer(RegexLexer):
     _operator_re = (
         r'\+\+|~|&&|\band\b|\bor\b|\bis\b|\bisnt\b|\bnot\b|\?|:|'
         r'\|\||\\(?=\n)|'
-        r'(<<|>>>?|==?(?!>)|!=?|=(?!>)|-(?!>)|[<>+*`%&\|\^/])=?')
+        r'(<<|>>>?|==?(?!>)|!=?|=(?!>)|-(?!>)|[<>+*`%&|\^/])=?')
 
     flags = re.DOTALL
     tokens = {
@@ -1065,7 +1072,7 @@ class CoffeeScriptLexer(RegexLexer):
         ],
         'root': [
             include('commentsandwhitespace'),
-            (r'^(?=\s|/)', Text, 'slashstartsregex'),
+            (r'\A(?=\s|/)', Text, 'slashstartsregex'),
             (_operator_re, Operator, 'slashstartsregex'),
             (r'(?:\([^()]*\))?\s*[=-]>', Name.Function, 'slashstartsregex'),
             (r'[{(\[;,]', Punctuation, 'slashstartsregex'),

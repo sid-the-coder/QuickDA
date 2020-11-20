@@ -72,7 +72,7 @@ class, that points to the data in the original.
 There are other points in the use of ndarrays where we need such views,
 such as copying arrays (``c_arr.copy()``), creating ufunc output arrays
 (see also :ref:`array-wrap`), and reducing methods (like
-``c_arr.mean()``.
+``c_arr.mean()``).
 
 Relationship of view casting and new-from-template
 --------------------------------------------------
@@ -114,7 +114,7 @@ For example, consider the following Python code:
 
 .. testcode::
 
-  class C(object):
+  class C:
       def __new__(cls, *args):
           print('Cls in __new__:', cls)
           print('Args in __new__:', args)
@@ -454,7 +454,7 @@ following.
     input numpy as np
 
     class A(np.ndarray):
-        def __array_ufunc__(self, ufunc, method, *inputs, **kwargs):
+        def __array_ufunc__(self, ufunc, method, *inputs, out=None, **kwargs):
             args = []
             in_no = []
             for i, input_ in enumerate(inputs):
@@ -464,7 +464,7 @@ following.
                 else:
                     args.append(input_)
 
-            outputs = kwargs.pop('out', None)
+            outputs = out
             out_no = []
             if outputs:
                 out_args = []
@@ -750,4 +750,3 @@ This object is now compatible with ``np.sum`` again because any extraneous argum
 ``**unused_kwargs`` parameter.
 
 """
-from __future__ import division, absolute_import, print_function

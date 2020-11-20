@@ -1,7 +1,5 @@
 """ Modified version of build_clib that handles fortran source files.
 """
-from __future__ import division, absolute_import, print_function
-
 import os
 from glob import glob
 import shutil
@@ -11,9 +9,10 @@ from distutils.errors import DistutilsSetupError, DistutilsError, \
 
 from numpy.distutils import log
 from distutils.dep_util import newer_group
-from numpy.distutils.misc_util import filter_sources, has_f_sources,\
-     has_cxx_sources, all_strings, get_lib_source_files, is_sequence, \
-     get_numpy_include_dirs
+from numpy.distutils.misc_util import (
+    filter_sources, get_lib_source_files, get_numpy_include_dirs,
+    has_cxx_sources, has_f_sources, is_sequence
+)
 
 # Fix Python distutils bug sf #1718574:
 _l = old_build_clib.user_options
@@ -50,8 +49,8 @@ class build_clib(old_build_clib):
         if self.parallel:
             try:
                 self.parallel = int(self.parallel)
-            except ValueError:
-                raise ValueError("--parallel/-j argument must be an integer")
+            except ValueError as e:
+                raise ValueError("--parallel/-j argument must be an integer") from e
         old_build_clib.finalize_options(self)
         self.set_undefined_options('build',
                                         ('parallel', 'parallel'),

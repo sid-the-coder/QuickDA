@@ -4,18 +4,10 @@
 
 import numpy as np
 
+import matplotlib.transforms as mtransforms
 from matplotlib import (
-    artist, cbook, lines as mlines, axis as maxis, patches as mpatches,
-    rcParams)
+    artist, lines as mlines, axis as maxis, patches as mpatches, rcParams)
 from . import art3d, proj3d
-
-
-@cbook.deprecated("3.1")
-def get_flip_min_max(coord, index, mins, maxs):
-    if coord[index] == mins[index]:
-        return maxs[index]
-    else:
-        return mins[index]
 
 
 def move_from_center(coord, centers, deltas, axmask=(True, True, True)):
@@ -28,7 +20,7 @@ def move_from_center(coord, centers, deltas, axmask=(True, True, True)):
 
 
 def tick_update_position(tick, tickxs, tickys, labelpos):
-    '''Update tick line and label position and style.'''
+    """Update tick line and label position and style."""
 
     tick.label1.set_position(labelpos)
     tick.label2.set_position(labelpos)
@@ -52,11 +44,11 @@ class Axis(maxis.XAxis):
     # Some properties for the axes
     _AXINFO = {
         'x': {'i': 0, 'tickdir': 1, 'juggled': (1, 0, 2),
-            'color': (0.95, 0.95, 0.95, 0.5)},
+              'color': (0.95, 0.95, 0.95, 0.5)},
         'y': {'i': 1, 'tickdir': 0, 'juggled': (0, 1, 2),
-            'color': (0.90, 0.90, 0.90, 0.5)},
+              'color': (0.90, 0.90, 0.90, 0.5)},
         'z': {'i': 2, 'tickdir': 0, 'juggled': (0, 2, 1),
-            'color': (0.925, 0.925, 0.925, 0.5)},
+              'color': (0.925, 0.925, 0.925, 0.5)},
     }
 
     def __init__(self, adir, v_intervalx, d_intervalx, axes, *args,
@@ -68,33 +60,48 @@ class Axis(maxis.XAxis):
         # Do not depend on this existing in future releases!
         self._axinfo = self._AXINFO[adir].copy()
         if rcParams['_internal.classic_mode']:
-            self._axinfo.update(
-                {'label': {'va': 'center',
-                           'ha': 'center'},
-                 'tick': {'inward_factor': 0.2,
-                          'outward_factor': 0.1,
-                          'linewidth': rcParams['lines.linewidth']},
-                 'axisline': {'linewidth': 0.75,
-                              'color': (0, 0, 0, 1)},
-                 'grid': {'color': (0.9, 0.9, 0.9, 1),
-                          'linewidth': 1.0,
-                          'linestyle': '-'},
-                 })
+            self._axinfo.update({
+                'label': {'va': 'center', 'ha': 'center'},
+                'tick': {
+                    'inward_factor': 0.2,
+                    'outward_factor': 0.1,
+                    'linewidth': {
+                        True: rcParams['lines.linewidth'],  # major
+                        False: rcParams['lines.linewidth'],  # minor
+                    }
+                },
+                'axisline': {'linewidth': 0.75, 'color': (0, 0, 0, 1)},
+                'grid': {
+                    'color': (0.9, 0.9, 0.9, 1),
+                    'linewidth': 1.0,
+                    'linestyle': '-',
+                },
+            })
         else:
-            self._axinfo.update(
-                {'label': {'va': 'center',
-                           'ha': 'center'},
-                 'tick': {'inward_factor': 0.2,
-                          'outward_factor': 0.1,
-                          'linewidth': rcParams.get(
-                              adir + 'tick.major.width',
-                              rcParams['xtick.major.width'])},
-                 'axisline': {'linewidth': rcParams['axes.linewidth'],
-                              'color': rcParams['axes.edgecolor']},
-                 'grid': {'color': rcParams['grid.color'],
-                          'linewidth': rcParams['grid.linewidth'],
-                          'linestyle': rcParams['grid.linestyle']},
-                 })
+            self._axinfo.update({
+                'label': {'va': 'center', 'ha': 'center'},
+                'tick': {
+                    'inward_factor': 0.2,
+                    'outward_factor': 0.1,
+                    'linewidth': {
+                        True: (  # major
+                            rcParams['xtick.major.width'] if adir in 'xz' else
+                            rcParams['ytick.major.width']),
+                        False: (  # minor
+                            rcParams['xtick.minor.width'] if adir in 'xz' else
+                            rcParams['ytick.minor.width']),
+                    }
+                },
+                'axisline': {
+                    'linewidth': rcParams['axes.linewidth'],
+                    'color': rcParams['axes.edgecolor'],
+                },
+                'grid': {
+                    'color': rcParams['grid.color'],
+                    'linewidth': rcParams['grid.linewidth'],
+                    'linestyle': rcParams['grid.linestyle'],
+                },
+            })
 
         maxis.XAxis.__init__(self, axes, *args, **kwargs)
 
@@ -126,20 +133,20 @@ class Axis(maxis.XAxis):
         self.label._transform = self.axes.transData
         self.offsetText._transform = self.axes.transData
 
-    @cbook.deprecated("3.1")
-    def get_tick_positions(self):
-        majorLocs = self.major.locator()
-        majorLabels = self.major.formatter.format_ticks(majorLocs)
-        return majorLabels, majorLocs
-
     def get_major_ticks(self, numticks=None):
         ticks = maxis.XAxis.get_major_ticks(self, numticks)
         for t in ticks:
-            t.tick1line.set_transform(self.axes.transData)
-            t.tick2line.set_transform(self.axes.transData)
-            t.gridline.set_transform(self.axes.transData)
-            t.label1.set_transform(self.axes.transData)
-            t.label2.set_transform(self.axes.transData)
+            for obj in [
+                    t.tick1line, t.tick2line, t.gridline, t.label1, t.label2]:
+                obj.set_transform(self.axes.transData)
+        return ticks
+
+    def get_minor_ticks(self, numticks=None):
+        ticks = maxis.XAxis.get_minor_ticks(self, numticks)
+        for t in ticks:
+            for obj in [
+                    t.tick1line, t.tick2line, t.gridline, t.label1, t.label2]:
+                obj.set_transform(self.axes.transData)
         return ticks
 
     def set_pane_pos(self, xys):
@@ -149,7 +156,7 @@ class Axis(maxis.XAxis):
         self.stale = True
 
     def set_pane_color(self, color):
-        '''Set pane color to a RGBA tuple.'''
+        """Set pane color to a RGBA tuple."""
         self._axinfo['color'] = color
         self.pane.set_edgecolor(color)
         self.pane.set_facecolor(color)
@@ -157,10 +164,10 @@ class Axis(maxis.XAxis):
         self.stale = True
 
     def set_rotate_label(self, val):
-        '''
+        """
         Whether to rotate the axis label: True, False or None.
         If set to None the label will be rotated if longer than 4 chars.
-        '''
+        """
         self._rotate_label = val
         self.stale = True
 
@@ -385,18 +392,60 @@ class Axis(maxis.XAxis):
             lx, ly, lz = proj3d.proj_transform(*pos, renderer.M)
 
             tick_update_position(tick, (x1, x2), (y1, y2), (lx, ly))
-            tick.tick1line.set_linewidth(info['tick']['linewidth'])
+            tick.tick1line.set_linewidth(
+                info['tick']['linewidth'][tick._major])
             tick.draw(renderer)
 
         renderer.close_group('axis3d')
         self.stale = False
 
-    # TODO: Get this to work properly when mplot3d supports
-    #       the transforms framework.
-    def get_tightbbox(self, renderer):
-        # Currently returns None so that Axis.get_tightbbox
-        # doesn't return junk info.
-        return None
+    # TODO: Get this to work (more) properly when mplot3d supports the
+    #       transforms framework.
+    def get_tightbbox(self, renderer, *, for_layout_only=False):
+        # inherited docstring
+        if not self.get_visible():
+            return
+        # We have to directly access the internal data structures
+        # (and hope they are up to date) because at draw time we
+        # shift the ticks and their labels around in (x, y) space
+        # based on the projection, the current view port, and their
+        # position in 3D space.  If we extend the transforms framework
+        # into 3D we would not need to do this different book keeping
+        # than we do in the normal axis
+        major_locs = self.get_majorticklocs()
+        minor_locs = self.get_minorticklocs()
+
+        ticks = [*self.get_minor_ticks(len(minor_locs)),
+                 *self.get_major_ticks(len(major_locs))]
+        view_low, view_high = self.get_view_interval()
+        if view_low > view_high:
+            view_low, view_high = view_high, view_low
+        interval_t = self.get_transform().transform([view_low, view_high])
+
+        ticks_to_draw = []
+        for tick in ticks:
+            try:
+                loc_t = self.get_transform().transform(tick.get_loc())
+            except AssertionError:
+                # Transform.transform doesn't allow masked values but
+                # some scales might make them, so we need this try/except.
+                pass
+            else:
+                if mtransforms._interval_contains_close(interval_t, loc_t):
+                    ticks_to_draw.append(tick)
+
+        ticks = ticks_to_draw
+
+        bb_1, bb_2 = self._get_tick_bboxes(ticks, renderer)
+        other = []
+
+        if self.line.get_visible():
+            other.append(self.line.get_window_extent(renderer))
+        if (self.label.get_visible() and not for_layout_only and
+                self.label.get_text()):
+            other.append(self.label.get_window_extent(renderer))
+
+        return mtransforms.Bbox.union([*bb_1, *bb_2, *other])
 
     @property
     def d_interval(self):
@@ -404,7 +453,7 @@ class Axis(maxis.XAxis):
 
     @d_interval.setter
     def d_interval(self, minmax):
-        return self.set_data_interval(*minmax)
+        self.set_data_interval(*minmax)
 
     @property
     def v_interval(self):
@@ -412,7 +461,7 @@ class Axis(maxis.XAxis):
 
     @v_interval.setter
     def v_interval(self, minmax):
-        return self.set_view_interval(*minmax)
+        self.set_view_interval(*minmax)
 
 
 # Use classes to look at different data limits

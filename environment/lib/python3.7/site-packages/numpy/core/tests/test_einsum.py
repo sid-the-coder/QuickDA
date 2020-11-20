@@ -1,5 +1,3 @@
-from __future__ import division, absolute_import, print_function
-
 import itertools
 
 import numpy as np
@@ -14,7 +12,7 @@ sizes = np.array([2, 3, 4, 5, 4, 3, 2, 6, 5, 4, 3])
 global_size_dict = dict(zip(chars, sizes))
 
 
-class TestEinsum(object):
+class TestEinsum:
     def test_einsum_errors(self):
         for do_opt in [True, False]:
             # Need enough arguments
@@ -29,7 +27,7 @@ class TestEinsum(object):
                           optimize=do_opt)
 
             # order parameter must be a valid order
-            assert_raises(TypeError, np.einsum, "", 0, order='W',
+            assert_raises(ValueError, np.einsum, "", 0, order='W',
                           optimize=do_opt)
 
             # casting parameter must be a valid casting
@@ -274,6 +272,13 @@ class TestEinsum(object):
             assert_equal(np.einsum("ii", a, optimize=do_opt),
                          np.trace(a).astype(dtype))
             assert_equal(np.einsum(a, [0, 0], optimize=do_opt),
+                         np.trace(a).astype(dtype))
+
+            # gh-15961: should accept numpy int64 type in subscript list
+            np_array = np.asarray([0, 0])
+            assert_equal(np.einsum(a, np_array, optimize=do_opt),
+                         np.trace(a).astype(dtype))
+            assert_equal(np.einsum(a, list(np_array), optimize=do_opt),
                          np.trace(a).astype(dtype))
 
         # multiply(a, b)
@@ -607,6 +612,10 @@ class TestEinsum(object):
                      [[[1,  3], [3,  9], [5, 15], [7, 21]],
                      [[8, 16], [16, 32], [24, 48], [32, 64]]])
 
+        # Ensure explicitly setting out=None does not cause an error
+        # see issue gh-15776 and issue gh-15256
+        assert_equal(np.einsum('i,j', [1], [2], out=None), [[2]])
+
     def test_subscript_range(self):
         # Issue #7741, make sure that all letters of Latin alphabet (both uppercase & lowercase) can be used
         # when creating a subscript from arrays
@@ -868,7 +877,7 @@ class TestEinsum(object):
         self.optimize_compare('obk,ijk->ioj', operands=[g, g])
 
 
-class TestEinsumPath(object):
+class TestEinsumPath:
     def build_operands(self, string, size_dict=global_size_dict):
 
         # Builds views based off initial operands

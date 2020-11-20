@@ -11,6 +11,7 @@ class Axis(_BaseTraceHierarchyType):
     _valid_props = {
         "dtick",
         "exponentformat",
+        "minexponent",
         "nticks",
         "range",
         "separatethousands",
@@ -100,6 +101,27 @@ class Axis(_BaseTraceHierarchyType):
     @exponentformat.setter
     def exponentformat(self, val):
         self["exponentformat"] = val
+
+    # minexponent
+    # -----------
+    @property
+    def minexponent(self):
+        """
+        Hide SI prefix for 10^n if |n| is below this number. This only
+        has an effect when `tickformat` is "SI" or "B".
+    
+        The 'minexponent' property is a number and may be specified as:
+          - An int or float in the interval [0, inf]
+
+        Returns
+        -------
+        int|float
+        """
+        return self["minexponent"]
+
+    @minexponent.setter
+    def minexponent(self, val):
+        self["minexponent"] = val
 
     # nticks
     # ------
@@ -424,11 +446,10 @@ class Axis(_BaseTraceHierarchyType):
         languages which are very similar to those in Python. For
         numbers, see: https://github.com/d3/d3-3.x-api-
         reference/blob/master/Formatting.md#d3_format And for dates
-        see: https://github.com/d3/d3-3.x-api-
-        reference/blob/master/Time-Formatting.md#format We add one item
-        to d3's date formatter: "%{n}f" for fractional seconds with n
-        digits. For example, *2016-10-13 09:15:23.456* with tickformat
-        "%H~%M~%S.%2f" would display "09~15~23.46"
+        see: https://github.com/d3/d3-time-format#locale_format We add
+        one item to d3's date formatter: "%{n}f" for fractional seconds
+        with n digits. For example, *2016-10-13 09:15:23.456* with
+        tickformat "%H~%M~%S.%2f" would display "09~15~23.46"
     
         The 'tickformat' property is a string and must be specified as:
           - A string
@@ -801,6 +822,10 @@ class Axis(_BaseTraceHierarchyType):
             "none", it appears as 1,000,000,000. If "e", 1e+9. If
             "E", 1E+9. If "power", 1x10^9 (with 9 in a super
             script). If "SI", 1G. If "B", 1B.
+        minexponent
+            Hide SI prefix for 10^n if |n| is below this number.
+            This only has an effect when `tickformat` is "SI" or
+            "B".
         nticks
             Specifies the maximum number of ticks for the
             particular axis. The actual number of ticks will be
@@ -850,12 +875,11 @@ class Axis(_BaseTraceHierarchyType):
             Python. For numbers, see:
             https://github.com/d3/d3-3.x-api-
             reference/blob/master/Formatting.md#d3_format And for
-            dates see: https://github.com/d3/d3-3.x-api-
-            reference/blob/master/Time-Formatting.md#format We add
-            one item to d3's date formatter: "%{n}f" for fractional
-            seconds with n digits. For example, *2016-10-13
-            09:15:23.456* with tickformat "%H~%M~%S.%2f" would
-            display "09~15~23.46"
+            dates see: https://github.com/d3/d3-time-
+            format#locale_format We add one item to d3's date
+            formatter: "%{n}f" for fractional seconds with n
+            digits. For example, *2016-10-13 09:15:23.456* with
+            tickformat "%H~%M~%S.%2f" would display "09~15~23.46"
         tickformatstops
             A tuple of :class:`plotly.graph_objects.indicator.gauge
             .axis.Tickformatstop` instances or dicts with
@@ -911,6 +935,7 @@ class Axis(_BaseTraceHierarchyType):
         arg=None,
         dtick=None,
         exponentformat=None,
+        minexponent=None,
         nticks=None,
         range=None,
         separatethousands=None,
@@ -977,6 +1002,10 @@ class Axis(_BaseTraceHierarchyType):
             "none", it appears as 1,000,000,000. If "e", 1e+9. If
             "E", 1E+9. If "power", 1x10^9 (with 9 in a super
             script). If "SI", 1G. If "B", 1B.
+        minexponent
+            Hide SI prefix for 10^n if |n| is below this number.
+            This only has an effect when `tickformat` is "SI" or
+            "B".
         nticks
             Specifies the maximum number of ticks for the
             particular axis. The actual number of ticks will be
@@ -1026,12 +1055,11 @@ class Axis(_BaseTraceHierarchyType):
             Python. For numbers, see:
             https://github.com/d3/d3-3.x-api-
             reference/blob/master/Formatting.md#d3_format And for
-            dates see: https://github.com/d3/d3-3.x-api-
-            reference/blob/master/Time-Formatting.md#format We add
-            one item to d3's date formatter: "%{n}f" for fractional
-            seconds with n digits. For example, *2016-10-13
-            09:15:23.456* with tickformat "%H~%M~%S.%2f" would
-            display "09~15~23.46"
+            dates see: https://github.com/d3/d3-time-
+            format#locale_format We add one item to d3's date
+            formatter: "%{n}f" for fractional seconds with n
+            digits. For example, *2016-10-13 09:15:23.456* with
+            tickformat "%H~%M~%S.%2f" would display "09~15~23.46"
         tickformatstops
             A tuple of :class:`plotly.graph_objects.indicator.gauge
             .axis.Tickformatstop` instances or dicts with
@@ -1122,6 +1150,10 @@ an instance of :class:`plotly.graph_objs.indicator.gauge.Axis`"""
         _v = exponentformat if exponentformat is not None else _v
         if _v is not None:
             self["exponentformat"] = _v
+        _v = arg.pop("minexponent", None)
+        _v = minexponent if minexponent is not None else _v
+        if _v is not None:
+            self["minexponent"] = _v
         _v = arg.pop("nticks", None)
         _v = nticks if nticks is not None else _v
         if _v is not None:

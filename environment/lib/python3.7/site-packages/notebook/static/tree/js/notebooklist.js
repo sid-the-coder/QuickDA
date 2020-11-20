@@ -10,8 +10,9 @@ define([
     'base/js/events',
     'base/js/keyboard',
     'moment',
-    'bidi/bidi'
-], function($, IPython, utils, i18n, dialog, events, keyboard, moment, bidi) {
+    'bidi/bidi',
+    'components/marked/lib/marked'
+], function($, IPython, utils, i18n, dialog, events, keyboard, moment, bidi, marked) {
     "use strict";
 
     var extension = function(path){
@@ -509,6 +510,7 @@ define([
                 console.log('Error adding link: ' + err);
             }
         }
+        this.add_header_footer(list)
         // Trigger an event when we've finished drawing the notebook list.
         events.trigger('draw_notebook_list.NotebookList');
 
@@ -526,6 +528,35 @@ define([
         });
         this._selection_changed();
     };
+
+
+    /**
+     * Adds header and/or footer
+     * @param  {Array} list - list of folder contents
+     */
+    NotebookList.prototype.add_header_footer = function (list) {
+      var that = this;
+      function create_markdown_row(index, list_item) {
+	var item = that.new_item(index);
+	var span12 = item.children().first();
+	span12.empty();
+	that.contents.get(list_item.path, {"content": true}).then(
+          function (data) {
+	    span12.append($('<div style="margin:auto;text-align:center;color:grey"/>').innerHTML = marked(data.content));
+	  },
+          function(error) {
+            span12.append(i18n.msg._("Server error: ") + error.message);
+	  });
+      };
+      var f = list.content.find(function (el) {return el.name == "header.md"})
+      if (f !== undefined) {
+	create_markdown_row(0, f)
+      }
+      var f = list.content.find(function (el) {return el.name == "footer.md"})
+      if (f !== undefined) {
+	create_markdown_row(-1, f)
+      }
+    }
 
 
     /**
@@ -729,10 +760,9 @@ define([
             $('.move-button').css('display', 'none');
         }
 
-        // Download is only visible when one item is selected, and it is not a
-        // running notebook or a directory
-        // TODO(nhdaly): Add support for download multiple items at once.
-        if (selected.length === 1 && !has_running_notebook && !has_directory) {
+        // Download is only visible when items are selected, and none are
+        // running notebooks or a directories
+        if (selected.length > 0 && !has_running_notebook && !has_directory) {
             $('.download-button').css('display', 'inline-block');
         } else {
             $('.download-button').css('display', 'none');
@@ -1151,14 +1181,10 @@ define([
     NotebookList.prototype.download_selected = function() {
         var that = this;
 
-        // TODO(nhdaly): Support download multiple items at once.
-        if (that.selected.length !== 1){
-            return;
-        }
-
-        var item_path = that.selected[0].path;
-
-        window.open(utils.url_path_join(that.base_url, 'files', utils.encode_uri_components(item_path)) + '?download=1', IPython._target);
+        that.selected.forEach(function(item) {
+            var item_path = utils.encode_uri_components(item.path);
+            window.open(utils.url_path_join(that.base_url, 'files', item_path) + '?download=1', IPython._target);
+      	});
     };
 
     NotebookList.prototype.delete_selected = function() {

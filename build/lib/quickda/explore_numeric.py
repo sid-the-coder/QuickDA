@@ -1,8 +1,4 @@
-import seaborn as sns
-import matplotlib.pyplot as plt
-import numpy as np
-
-sns.set(style="darkgrid")
+from quickda.config import *
 
 def boxplot_of_numerical_features(data):
     
@@ -21,7 +17,7 @@ def histogram_of_numerical_features(data, num_of_bins):
     # Show histogram of all numeric columns
     columns = data.select_dtypes(include=np.number).columns
     for column in columns:
-        sns.distplot(data[column], bins=num_of_bins)
+        sns.histplot(data=data, x=column, kde=True, bins=num_of_bins)
         plt.show()
 
 def get_correlation_between_numerical_features(data):

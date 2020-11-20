@@ -97,7 +97,7 @@ class Script(object):
         an issue for people that do more complex stuff with Jedi.
 
         This is purely a performance optimization and works pretty well for all
-        typical usages, however consider to turn the setting of if it causes
+        typical usages, however consider to turn the setting off if it causes
         you problems. See also
         `this discussion <https://github.com/davidhalter/jedi/issues/1240>`_.
 
@@ -128,15 +128,6 @@ class Script(object):
         # An empty path (also empty string) should always result in no path.
         self.path = os.path.abspath(path) if path else None
 
-        # TODO deprecate and remove sys_path from the Script API.
-        if sys_path is not None:
-            project._sys_path = sys_path
-            warnings.warn(
-                "Deprecated since version 0.17.0. Use the project API instead, "
-                "which means Script(project=Project(dir, sys_path=sys_path)) instead.",
-                DeprecationWarning,
-                stacklevel=2
-            )
         if encoding is None:
             encoding = 'utf-8'
         else:
@@ -179,6 +170,15 @@ class Script(object):
             # Load the Python grammar of the current interpreter.
             project = get_default_project(
                 os.path.dirname(self.path) if path else None
+            )
+        # TODO deprecate and remove sys_path from the Script API.
+        if sys_path is not None:
+            project._sys_path = sys_path
+            warnings.warn(
+                "Deprecated since version 0.17.0. Use the project API instead, "
+                "which means Script(project=Project(dir, sys_path=sys_path)) instead.",
+                DeprecationWarning,
+                stacklevel=2
             )
 
         self._inference_state = InferenceState(
@@ -472,9 +472,20 @@ class Script(object):
         if definitions:
             return definitions
         leaf = self._module_node.get_leaf_for_position((line, column))
-        if leaf.type in ('keyword', 'operator', 'error_leaf'):
-            reserved = self._inference_state.grammar._pgen_grammar.reserved_syntax_strings.keys()
-            if leaf.value in reserved:
+        if leaf is not None and leaf.type in ('keyword', 'operator', 'error_leaf'):
+            def need_pydoc():
+                if leaf.value in ('(', ')', '[', ']'):
+                    if leaf.parent.type == 'trailer':
+                        return False
+                    if leaf.parent.type == 'atom':
+                        return False
+                grammar = self._inference_state.grammar
+                # This parso stuff is not public, but since I control it, this
+                # is fine :-) ~dave
+                reserved = grammar._pgen_grammar.reserved_syntax_strings.keys()
+                return leaf.value in reserved
+
+            if need_pydoc():
                 name = KeywordName(self._inference_state, leaf.value)
                 return [classes.Name(self._inference_state, name)]
         return []
@@ -494,21 +505,25 @@ class Script(object):
         quite hard to do for Jedi, if it is too complicated, Jedi will stop
         searching.
 
-        :param include_builtins: Default True, checks if a reference is a
-            builtin (e.g. ``sys``) and in that case does not return it.
+        :param include_builtins: Default ``True``. If ``False``, checks if a reference
+            is a builtin (e.g. ``sys``) and in that case does not return it.
+        :param scope: Default ``'project'``. If ``'file'``, include references in
+            the current module only.
         :rtype: list of :class:`.Name`
         """
 
-        def _references(include_builtins=True):
+        def _references(include_builtins=True, scope='project'):
+            if scope not in ('project', 'file'):
+                raise ValueError('Only the scopes "file" and "project" are allowed')
             tree_name = self._module_node.get_name_of_position((line, column))
             if tree_name is None:
                 # Must be syntax
                 return []
 
-            names = find_references(self._get_module_context(), tree_name)
+            names = find_references(self._get_module_context(), tree_name, scope == 'file')
 
             definitions = [classes.Name(self._inference_state, n) for n in names]
-            if not include_builtins:
+            if not include_builtins or scope == 'file':
                 definitions = [d for d in definitions if not d.in_builtin_module()]
             return helpers.sorted_definitions(definitions)
         return _references(**kwargs)
@@ -748,10 +763,11 @@ class Script(object):
             global_var = 3
 
             def bar(foo):
-                return foo + 1 + global_var
+                return int(foo + 1 + global_var)
 
-            def x(foo):
-                x = int(bar(foo))
+            def x():
+                foo = 3.1
+                x = bar(foo)
 
         :param new_name: The expression under the cursor will be replaced with
             a function with this name.

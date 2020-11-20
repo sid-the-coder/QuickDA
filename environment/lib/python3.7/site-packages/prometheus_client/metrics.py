@@ -27,12 +27,12 @@ def _build_full_name(metric_type, name, namespace, subsystem, unit):
     if subsystem:
         full_name += subsystem + '_'
     full_name += name
+    if metric_type == 'counter' and full_name.endswith('_total'):
+        full_name = full_name[:-6]  # Munge to OpenMetrics.
     if unit and not full_name.endswith("_" + unit):
         full_name += "_" + unit
     if unit and metric_type in ('info', 'stateset'):
         raise ValueError('Metric name is of a type that cannot have a unit: ' + full_name)
-    if metric_type == 'counter' and full_name.endswith('_total'):
-        full_name = full_name[:-6]  # Munge to OpenMetrics.
     return full_name
 
 
@@ -58,6 +58,13 @@ class MetricWrapperBase(object):
         # * the child of a labelled metric.
         return not self._labelnames or (self._labelnames and self._labelvalues)
 
+    def _raise_if_not_observable(self):
+        # Functions that mutate the state of the metric, for example incrementing
+        # a counter, will fail if the metric is not observable, because only if a
+        # metric is observable will the value be initialized.
+        if not self._is_observable():
+            raise ValueError('%s metric is missing label values' % str(self._type))
+
     def _is_parent(self):
         return self._labelnames and not self._labelvalues
 
@@ -72,6 +79,13 @@ class MetricWrapperBase(object):
         for suffix, labels, value in self._samples():
             metric.add_sample(self._name + suffix, labels, value)
         return [metric]
+
+    def __str__(self):
+        return "{0}:{1}".format(self._type, self._name)
+
+    def __repr__(self):
+        metric_type = type(self)
+        return "{0}.{1}({2})".format(metric_type.__module__, metric_type.__name__, self._name)
 
     def __init__(self,
                  name,
@@ -250,6 +264,7 @@ class Counter(MetricWrapperBase):
         Increments the counter when an exception of the given
         type is raised up out of the code.
         """
+        self._raise_if_not_observable()
         return ExceptionCounter(self, exception)
 
     def _child_samples(self):
@@ -354,6 +369,7 @@ class Gauge(MetricWrapperBase):
         Increments the gauge when the code is entered,
         and decrements when it is exited.
         """
+        self._raise_if_not_observable()
         return InprogressTracker(self)
 
     def time(self):
@@ -361,6 +377,7 @@ class Gauge(MetricWrapperBase):
 
         Can be used as a function decorator or context manager.
         """
+        self._raise_if_not_observable()
         return Timer(self.set)
 
     def set_function(self, f):
@@ -428,6 +445,7 @@ class Summary(MetricWrapperBase):
 
         Can be used as a function decorator or context manager.
         """
+        self._raise_if_not_observable()
         return Timer(self.observe)
 
     def _child_samples(self):
@@ -548,7 +566,8 @@ class Histogram(MetricWrapperBase):
             acc += self._buckets[i].get()
             samples.append(('_bucket', {'le': floatToGoString(bound)}, acc))
         samples.append(('_count', {}, acc))
-        samples.append(('_sum', {}, self._sum.get()))
+        if self._upper_bounds[0] >= 0:
+            samples.append(('_sum', {}, self._sum.get()))
         samples.append(('_created', {}, self._created))
         return tuple(samples)
 
@@ -637,6 +656,7 @@ class Enum(MetricWrapperBase):
 
     def state(self, state):
         """Set enum metric state."""
+        self._raise_if_not_observable()
         with self._lock:
             self._value = self._states.index(state)
 

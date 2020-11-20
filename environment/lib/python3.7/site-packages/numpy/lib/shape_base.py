@@ -1,5 +1,3 @@
-from __future__ import division, absolute_import, print_function
-
 import functools
 
 import numpy.core.numeric as _nx
@@ -271,8 +269,8 @@ def apply_along_axis(func1d, axis, arr, *args, **kwargs):
     """
     Apply a function to 1-D slices along the given axis.
 
-    Execute `func1d(a, *args)` where `func1d` operates on 1-D arrays and `a`
-    is a 1-D slice of `arr` along `axis`.
+    Execute `func1d(a, *args, **kwargs)` where `func1d` operates on 1-D arrays
+    and `a` is a 1-D slice of `arr` along `axis`.
 
     This is equivalent to (but faster than) the following use of `ndindex` and
     `s_`, which sets each of ``ii``, ``jj``, and ``kk`` to a tuple of indices::
@@ -374,8 +372,10 @@ def apply_along_axis(func1d, axis, arr, *args, **kwargs):
     # invoke the function on the first item
     try:
         ind0 = next(inds)
-    except StopIteration:
-        raise ValueError('Cannot apply_along_axis when any iteration dimensions are 0')
+    except StopIteration as e:
+        raise ValueError(
+            'Cannot apply_along_axis when any iteration dimensions are 0'
+        ) from None
     res = asanyarray(func1d(inarr_view[ind0], *args, **kwargs))
 
     # build a buffer for storing evaluations of func1d.
@@ -688,10 +688,12 @@ def dstack(tup):
 
     See Also
     --------
-    stack : Join a sequence of arrays along a new axis.
-    vstack : Stack along first axis.
-    hstack : Stack along second axis.
     concatenate : Join a sequence of arrays along an existing axis.
+    stack : Join a sequence of arrays along a new axis.
+    block : Assemble an nd-array from nested lists of blocks.
+    vstack : Stack arrays in sequence vertically (row wise).
+    hstack : Stack arrays in sequence horizontally (column wise).
+    column_stack : Stack 1-D arrays as columns into a 2-D array.
     dsplit : Split array along third axis.
 
     Examples

@@ -1,8 +1,6 @@
 """ Modified version of build_ext that handles fortran source files.
 
 """
-from __future__ import division, absolute_import, print_function
-
 import os
 import subprocess
 from glob import glob
@@ -15,11 +13,11 @@ from distutils.file_util import copy_file
 
 from numpy.distutils import log
 from numpy.distutils.exec_command import filepath_from_subprocess_output
-from numpy.distutils.system_info import combine_paths, system_info
-from numpy.distutils.misc_util import filter_sources, has_f_sources, \
-    has_cxx_sources, get_ext_source_files, \
-    get_numpy_include_dirs, is_sequence, get_build_architecture, \
-    msvc_version
+from numpy.distutils.system_info import combine_paths
+from numpy.distutils.misc_util import (
+    filter_sources, get_ext_source_files, get_numpy_include_dirs,
+    has_cxx_sources, has_f_sources, is_sequence
+)
 from numpy.distutils.command.config_compiler import show_fortran_compilers
 
 
@@ -54,8 +52,8 @@ class build_ext (old_build_ext):
         if self.parallel:
             try:
                 self.parallel = int(self.parallel)
-            except ValueError:
-                raise ValueError("--parallel/-j argument must be an integer")
+            except ValueError as e:
+                raise ValueError("--parallel/-j argument must be an integer") from e
 
         # Ensure that self.include_dirs and self.distribution.include_dirs
         # refer to the same list object. finalize_options will modify
@@ -522,7 +520,7 @@ class build_ext (old_build_ext):
 
         # Wrap unlinkable objects to a linkable one
         if unlinkable_fobjects:
-            fobjects = [os.path.relpath(obj) for obj in unlinkable_fobjects]
+            fobjects = [os.path.abspath(obj) for obj in unlinkable_fobjects]
             wrapped = fcompiler.wrap_unlinkable_objects(
                     fobjects, output_dir=self.build_temp,
                     extra_dll_dir=self.extra_dll_dir)

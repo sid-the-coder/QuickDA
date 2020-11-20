@@ -389,6 +389,8 @@ define([
 
     OutputArea.prototype.create_output_subarea = function(md, classes, mime) {
         var subarea = $('<div/>').addClass('output_subarea').addClass(classes);
+        // Unforce RTL
+        subarea.attr("dir","auto");
         if (_get_metadata_key(md, 'isolated', mime)) {
             // Create an iframe to isolate the subarea from the rest of the
             // document
@@ -462,6 +464,8 @@ define([
             // the prompt area and the proper indentation.
             toinsert = this.create_output_area();
             var subarea = $('<div/>').addClass('output_subarea');
+            // Unforce RTL
+            subarea.attr("dir","auto");
             toinsert.append(subarea);
             this._append_javascript_error(err, subarea);
             this.element.append(toinsert);
@@ -589,6 +593,8 @@ define([
         var that = this;
         var toinsert = this.create_output_area();
         var subarea = $('<div/>').addClass('output_subarea output_unrecognized');
+        // Unforce RTL
+        subarea.attr("dir","auto");
         toinsert.append(subarea);
         subarea.append(
             $("<a>")
@@ -838,34 +844,16 @@ define([
         }
     };
     
-    var append_png = function (png, md, element, handle_inserted) {
-        var type = MIME_PNG;
-        var toinsert = this.create_output_subarea(md, "output_png", type);
+    OutputArea.prototype._append_img = function (src_type, md, element, handle_inserted, MIME, type_string) {
+        var type = MIME;
+        var toinsert = this.create_output_subarea(md, 'output_' + type_string, type);
         var img = $("<img/>");
         if (handle_inserted !== undefined) {
             img.on('load', function(){
                 handle_inserted(img);
             });
         }
-        img[0].src = 'data:image/png;base64,'+ png;
-        set_width_height(img, md, type);
-        dblclick_to_reset_size(img);
-        toinsert.append(img);
-        element.append(toinsert);
-        return toinsert;
-    };
-
-
-    var append_jpeg = function (jpeg, md, element, handle_inserted) {
-        var type = MIME_JPEG;
-        var toinsert = this.create_output_subarea(md, "output_jpeg", type);
-        var img = $("<img/>");
-        if (handle_inserted !== undefined) {
-            img.on('load', function(){
-                handle_inserted(img);
-            });
-        }
-        img[0].src = 'data:image/jpeg;base64,'+ jpeg;
+        img[0].src = 'data:image/' + type_string + ';base64,'+ src_type;
         set_width_height(img, md, type);
         dblclick_to_reset_size(img);
         toinsert.append(img);
@@ -873,23 +861,17 @@ define([
         return toinsert;
     };
     
-    var append_gif = function (gif, md, element, handle_inserted) {
-        var type = MIME_GIF;
-        var toinsert = this.create_output_subarea(md, "output_gif", type);
-        var img = $("<img/>");
-        if (handle_inserted !== undefined) {
-            img.on('load', function(){
-                handle_inserted(img);
-            });
-        }
-        img[0].src = 'data:image/gif;base64,'+ gif;
-        set_width_height(img, md, type);
-        dblclick_to_reset_size(img);
-        toinsert.append(img);
-        element.append(toinsert);
-        return toinsert;
+    var append_png = function (png, md, element, handle_inserted) {
+        return this._append_img(png, md, element, handle_inserted, MIME_PNG, 'png');
     };
 
+    var append_jpeg = function (jpeg, md, element, handle_inserted) {
+        return this._append_img(jpeg, md, element, handle_inserted, MIME_JPEG, 'jpeg');
+    };
+    
+    var append_gif = function (gif, md, element, handle_inserted) {
+        return this._append_img(gif, md, element, handle_inserted, MIME_GIF, 'gif');
+    };
 
     var append_pdf = function (pdf, md, element) {
         var type = MIME_PDF;
@@ -947,6 +929,7 @@ define([
                     })
                 )
             )
+            .attr("dir","auto")
         );
         
         this.element.append(area);
