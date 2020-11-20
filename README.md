@@ -5,7 +5,7 @@ Simple & Easy-to-use python modules to perform Quick Exploratory Data Analysis f
 ![QuickDA](https://raw.githubusercontent.com/sid-the-coder/QuickDA/master/images/quickda.png)
 
 
-## Getting Started
+## [Getting Started](https://medium.com/@gauty95/quickda-low-code-python-library-for-quick-exploratory-data-analysis-b4b1c3af369d)
 
 You will need to have [Python 3](https://www.python.org) and [Jupyter Notebook](https://jupyter.org) installed in your local system. Once installed, clone this repository to your local to get the project structure setup.
 ```
@@ -103,4 +103,9 @@ pip3 install quickda
 
 1. **Basic Preprocessing for Text Data** - Tokenization, Normalization, Noise Removal, Lemmatization 
 2. **EDA for Text Data** - NGrams, POS tagging, Word Cloud, Sentiment Analysis
+<<<<<<< HEAD
 3. **Quick Insight Generation for all EDA steps** - Generate easy-to-read textual insights
+=======
+3. **Quick Insight Generation for all EDA steps** - Generate easy-to-read textual insights
+3. **Quick Excel View of Data** - Filter, Sort, Quick Pivot Tables inside Jupyter Notebook
+>>>>>>> 4aa502ec787a84e920a92c6a5083e8e1a4f38cd0
