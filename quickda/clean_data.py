@@ -2,60 +2,67 @@ from quickda.config import *
 
 def standardize_column_names(data):
     
+    df = data.copy(deep=True)
     # Replace space and '_' in column names and convert them to lowercase 
-    data.columns = [i.replace(' ', '_').lower() for i in data.columns]
+    df.columns = [i.replace(' ', '_').lower() for i in df.columns]
     
-    return data
+    return df
 
 def drop_features(data, columns_to_drop):
     
+    df = data.copy(deep=True)
     # Drop all the list of columns specified by the user
-    data = data.drop(columns_to_drop, axis=1, errors='ignore')
+    df = df.drop(columns_to_drop, axis=1, errors='ignore')
     
-    return data
+    return df
 
 def drop_duplicate_rows(data):
     
+    df = data.copy(deep=True)
     # Drop all the duplicate rows
-    data = data.drop_duplicates()
+    df = df.drop_duplicates()
     
-    return data
+    return df
 
 def replace_value(data, columns, value_to_replace, new_value):
     
+    df = data.copy(deep=True)
     # If columns not specified by the user, replace value in all columns 
     if columns==[]:
-        data = data.replace(value_to_replace, new_value)
+        df = df.replace(value_to_replace, new_value)
     else:
         for column in columns:
-            data[column] = data[column].replace(value_to_replace, new_value)
+            df[column] = df[column].replace(value_to_replace, new_value)
             
-    return data
+    return df
 
 def fill_na_rows(data):
     
+    df = data.copy(deep=True)
     # Retrieve the list of columns having nulls and interpolate for each column
-    na_columns = data.columns[data.isna().any()].tolist()
+    na_columns = df.columns[df.isna().any()].tolist()
     for column in na_columns:
-        data[column] = data[column].interpolate(method='pad', limit_direction='forward')
+        df[column] = df[column].interpolate(method='pad', limit_direction='forward')
         
-    return data
+    return df
 
 def drop_na_rows(data):
     
+    df = data.copy(deep=True)
     # Drop all nulls
-    data = data.dropna() 
+    df = df.dropna() 
     
-    return data
+    return df
 
 def reduce_feature_cardinality(data, category_column, new_value, threshold):
     
+    df = data.copy(deep=True)
     # If user doesn't input new value to replace with
     if pd.isnull(new_value):
         new_value = "other"
         
     # Find relative frequency of column to compare with threshold
-    relative_pct = data[category_column].value_counts(dropna=False, normalize=True).round(2)
+    relative_pct = df[category_column].value_counts(dropna=False, normalize=True).round(2)
     
     values_to_retain = []
     # If threshold not provided by user, retain only top 5 values else extract values to retain
@@ -72,51 +79,55 @@ def reduce_feature_cardinality(data, category_column, new_value, threshold):
                 break
                 
     # Replace all values in DataFrame other than values marked to be retained
-    data_out = data.copy()
-    data_out.loc[~data[category_column].isin(values_to_retain), category_column] = new_value
+    df_out = df.copy()
+    df_out.loc[~df[category_column].isin(values_to_retain), category_column] = new_value
     
-    return data_out
+    return df_out
 
 def convert_features_dtype_to_datetime(data, datetime_columns):
     
+    df = data.copy(deep=True)
     # Convert columns to datetime
-    data_out = data.copy()
-    data_out.loc[:, datetime_columns] = data[datetime_columns].apply(pd.to_datetime, infer_datetime_format=True, errors='ignore')
+    df_out = df.copy()
+    df_out.loc[:, datetime_columns] = df[datetime_columns].apply(pd.to_datetime, infer_datetime_format=True, errors='ignore')
     
-    return data_out
+    return df_out
 
 def convert_features_dtype_to_category(data, category_columns):
     
+    df = data.copy(deep=True)
     # Convert columns to category type
-    data_out = data.copy()
-    data_out.loc[:, category_columns] = data[category_columns].apply(pd.Categorical)
+    df_out = df.copy()
+    df_out.loc[:, category_columns] = df[category_columns].apply(pd.Categorical)
     
-    return data_out
+    return df_out
 
 def convert_features_dtype_to_numeric(data, numeric_columns):
     
+    df = data.copy(deep=True)
     # Convert columns to numeric
-    data_out = data.copy()
-    data_out.loc[:, numeric_columns] = data[numeric_columns].apply(pd.to_numeric, errors='ignore')
+    df_out = df.copy()
+    df_out.loc[:, numeric_columns] = df[numeric_columns].apply(pd.to_numeric, errors='ignore')
     
     return data_out
 
 def remove_outliers_in_numerical_feature(data, num_columns):
     
+    df = data.copy(deep=True)
     # If user doesn't provide the column name(s), then infer the type
     if num_columns==[]:
-        num_columns = data.select_dtypes(include=np.number).columns
+        num_columns = df.select_dtypes(include=np.number).columns
         
     # Remove outliers for specified columns
     for column in num_columns:
-        q1 = data[column].quantile(0.25)
-        q3 = data[column].quantile(0.75)
+        q1 = df[column].quantile(0.25)
+        q3 = df[column].quantile(0.75)
         iqr = q3-q1
         fence_low  = q1-1.5*iqr
         fence_high = q3+1.5*iqr
-        data = data.loc[(data[column] > fence_low) & (data[column] < fence_high)]
+        df = df.loc[(df[column] > fence_low) & (df[column] < fence_high)]
         
-    return data
+    return df
 
 #================================================================================================================================
 

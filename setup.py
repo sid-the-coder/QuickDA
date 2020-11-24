@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="quickda", 
-    version="0.2.1",
+    version="0.2.2",
     author="Sidheswar Venkatachalapathi",
     author_email="gauty95@gmail.com",
     description="Simple & Easy-to-use python modules to perform Quick Exploratory Data Analysis for any structured dataset!",
