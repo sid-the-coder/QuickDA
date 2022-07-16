@@ -42,7 +42,7 @@ def fill_na_rows(data):
     # Retrieve the list of columns having nulls and interpolate for each column
     na_columns = df.columns[df.isna().any()].tolist()
     for column in na_columns:
-        df[column] = df[column].interpolate(method='pad', limit_direction='forward')
+        df[column] = df[column].interpolate(method='linear', limit_direction='both')
         
     return df
 
