@@ -109,7 +109,7 @@ def convert_features_dtype_to_numeric(data, numeric_columns):
     df_out = df.copy()
     df_out.loc[:, numeric_columns] = df[numeric_columns].apply(pd.to_numeric, errors='ignore')
     
-    return data_out
+    return df_out
 
 def remove_outliers_in_numerical_feature(data, num_columns):
     
